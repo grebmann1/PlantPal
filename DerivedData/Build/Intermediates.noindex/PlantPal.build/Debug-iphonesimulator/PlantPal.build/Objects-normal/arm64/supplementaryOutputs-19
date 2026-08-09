@@ -1,0 +1,23 @@
+{
+  "/Users/grebmann/Documents/projects/plantPal/Sources/App.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/App.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/App.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/App.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/App.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/App.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/Sources/Models/AlternateMatch.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AlternateMatch.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AlternateMatch.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AlternateMatch.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AlternateMatch.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AlternateMatch.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/Sources/Services/AIProxyService.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AIProxyService.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AIProxyService.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AIProxyService.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AIProxyService.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/AIProxyService.swiftdeps"
+  }
+}

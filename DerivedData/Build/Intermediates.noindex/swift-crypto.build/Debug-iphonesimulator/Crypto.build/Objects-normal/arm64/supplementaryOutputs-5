@@ -1,0 +1,44 @@
+{
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/CryptoError_boring.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoError_boring.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoError_boring.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoError_boring.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoError_boring.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoError_boring.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/CryptoKitErrors.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoKitErrors.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoKitErrors.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoKitErrors.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoKitErrors.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/CryptoKitErrors.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/Digests/BoringSSL/Digest_boring.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest_boring.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest_boring.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest_boring.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest_boring.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest_boring.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/Digests/Digest.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digest.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/Digests/Digests.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digests.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digests.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digests.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digests.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Digests.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/DerivedData/SourcePackages/checkouts/swift-crypto/Sources/Crypto/Digests/HashFunctions.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/HashFunctions.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/HashFunctions.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/HashFunctions.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/HashFunctions.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/HashFunctions.swiftdeps"
+  }
+}

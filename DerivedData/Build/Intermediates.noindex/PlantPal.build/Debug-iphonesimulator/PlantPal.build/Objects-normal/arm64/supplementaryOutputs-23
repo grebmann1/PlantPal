@@ -1,0 +1,23 @@
+{
+  "/Users/grebmann/Documents/projects/plantPal/Sources/State/Coordinator.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/Coordinator.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/Coordinator.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/Coordinator.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/Coordinator.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/Coordinator.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/Sources/Views/ContentView.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/ContentView.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/ContentView.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/Sources/Views/Shared/FieldJournalComponents.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/FieldJournalComponents.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/FieldJournalComponents.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/FieldJournalComponents.dia",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/FieldJournalComponents.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/PlantPal.build/Debug-iphonesimulator/PlantPal.build/Objects-normal/arm64/FieldJournalComponents.swiftdeps"
+  }
+}

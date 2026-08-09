@@ -1,0 +1,4 @@
+module Spark {
+header "Spark-Swift.h"
+export *
+}

@@ -1,0 +1,60 @@
+name: PlantPal
+options:
+  bundleIdPrefix: ai.mwm
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+packages:
+  Spark:
+    path: Vendor/SparkFlash
+  Supabase:
+    from: 2.24.0
+    url: https://github.com/supabase/supabase-swift
+targets:
+  PlantPal:
+    dependencies:
+    - package: Spark
+      product: Spark
+    - package: Supabase
+      product: Supabase
+    platform: iOS
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGNING_ALLOWED: "NO"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: PlantPal
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
+        INFOPLIST_KEY_NSCameraUsageDescription: PlantPal uses your camera to identify
+          plants and check their health.
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: PlantPal can use photos from
+          your library to identify plants and check their health.
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait
+          UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        MARKETING_VERSION: "1.0"
+        PRODUCT_BUNDLE_IDENTIFIER: ai.mwm.ce26a5e1-abe9-40e3-a9bc-6129787ae177
+        PRODUCT_NAME: PlantPal
+        SWIFT_VERSION: "6.0"
+    sources:
+    - Sources
+    - Resources
+    type: application
+  PlantPalBuildScreenshots:
+    dependencies:
+    - target: PlantPal
+    platform: iOS
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: true
+        PRODUCT_NAME: PlantPalBuildScreenshots
+    sources:
+    - BuildScreenshots
+    type: bundle.ui-testing

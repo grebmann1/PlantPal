@@ -1,0 +1,19 @@
+{
+  "" : {
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/Spark-primary.dia",
+    "emit-module-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/Spark-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/Spark-primary-emit-module.dia",
+    "pch" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/Spark-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/Spark-primary.swiftdeps"
+  },
+  "/Users/grebmann/Documents/projects/plantPal/Vendor/SparkFlash/Sources/SparkFlash.swift" : {
+    "const-values" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.swiftconstvalues",
+    "dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.d",
+    "diagnostics" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.dia",
+    "index-unit-output-path" : "/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.o",
+    "llvm-bc" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.bc",
+    "object" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.o",
+    "swift-dependencies" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash.swiftdeps",
+    "swiftmodule" : "/Users/grebmann/Documents/projects/plantPal/DerivedData/Build/Intermediates.noindex/Spark.build/Debug-iphonesimulator/Spark.build/Objects-normal/arm64/SparkFlash~partial.swiftmodule"
+  }
+}
