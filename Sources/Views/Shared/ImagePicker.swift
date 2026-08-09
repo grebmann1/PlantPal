@@ -5,17 +5,26 @@ import UIKit
 /// automatically since .camera source isn't available there).
 struct ImagePicker: UIViewControllerRepresentable {
     var sourceType: UIImagePickerController.SourceType
+    var flashMode: UIImagePickerController.CameraFlashMode = .auto
     var onImage: (UIImage) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.delegate = context.coordinator
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        let resolved = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.sourceType = resolved
         picker.allowsEditing = false
+        if resolved == .camera, UIImagePickerController.isFlashAvailable(for: .rear) {
+            picker.cameraFlashMode = flashMode
+        }
         return picker
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+        if uiViewController.sourceType == .camera, UIImagePickerController.isFlashAvailable(for: .rear) {
+            uiViewController.cameraFlashMode = flashMode
+        }
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 

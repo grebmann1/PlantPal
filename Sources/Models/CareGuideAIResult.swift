@@ -1,6 +1,6 @@
 import Foundation
 
-struct CareGuideAIResult: Codable {
+struct CareGuideAIResult: Codable, Hashable {
     var lightRequirement: String
     var wateringFrequency: String
     var wateringAmount: String

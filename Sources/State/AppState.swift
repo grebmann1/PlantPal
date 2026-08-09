@@ -53,6 +53,12 @@ final class AppState: ObservableObject {
         isReady = true
     }
 
+    /// Clears the local guest flag after a real account session is established.
+    func clearGuestMode() {
+        UserDefaults.standard.removeObject(forKey: "pp.isGuest")
+        isGuest = false
+    }
+
     func signOut() async {
         if session != nil {
             try? await SupabaseManager.client.auth.signOut()

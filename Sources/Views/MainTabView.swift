@@ -4,7 +4,12 @@ struct MainTabView: View {
     @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var appState: AppState
     @StateObject private var garden = GardenStore()
+    @StateObject private var catalog = SpeciesCatalogStore()
     @Environment(\.appTheme) private var theme
+
+    @AppStorage("pp.wateringReminders") private var wateringReminders = true
+    @AppStorage("pp.scanNudges") private var scanNudges = false
+    @AppStorage("pp.reminderTime") private var reminderTimeRaw = 27000.0
 
     var body: some View {
         TabView(selection: $coordinator.selectedTab) {
@@ -16,15 +21,31 @@ struct MainTabView: View {
                         }
                 }
             }
+            Tab("Discover", systemImage: "books.vertical.fill", value: AppTab.catalog) {
+                NavigationStack(path: $coordinator.catalogPath) {
+                    SpeciesCatalogView()
+                        .navigationDestination(for: AppRoute.self) { route in
+                            destination(for: route)
+                        }
+                }
+            }
             Tab("Scan", systemImage: "camera.viewfinder", value: AppTab.scan) {
                 NavigationStack(path: $coordinator.scanPath) {
                     ScanPlantView()
                         .navigationDestination(for: ScanRoute.self) { route in
                             switch route {
-                            case .identification(let context):
-                                IdentificationResultView(context: context)
-                            case .health(let context):
-                                HealthAssessmentView(context: context)
+                            case .identification(let captureId):
+                                if let context = coordinator.capture(for: captureId) {
+                                    IdentificationResultView(captureId: captureId, context: context)
+                                } else {
+                                    missingCaptureView
+                                }
+                            case .health(let captureId):
+                                if let context = coordinator.capture(for: captureId) {
+                                    HealthAssessmentView(captureId: captureId, context: context)
+                                } else {
+                                    missingCaptureView
+                                }
                             }
                         }
                 }
@@ -45,10 +66,39 @@ struct MainTabView: View {
         }
         .tint(theme.primary)
         .environmentObject(garden)
+        .environmentObject(catalog)
+        .safeAreaInset(edge: .top) {
+            if let message = garden.errorMessage {
+                errorBanner(message)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { coordinator.scanSpeciesSheetId != nil },
+            set: { if !$0 { coordinator.scanSpeciesSheetId = nil } }
+        )) {
+            if let speciesId = coordinator.scanSpeciesSheetId {
+                NavigationStack {
+                    SpeciesDetailView(speciesId: speciesId)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Close") { coordinator.scanSpeciesSheetId = nil }
+                            }
+                        }
+                }
+                .environmentObject(garden)
+                .environmentObject(catalog)
+                .environmentObject(appState)
+                .environmentObject(coordinator)
+            }
+        }
         .task(id: appState.effectiveUserId) {
             if let userId = appState.effectiveUserId {
                 await garden.loadAll(userId: userId, isGuest: appState.isGuest)
+                await rescheduleNotifications()
             }
+        }
+        .onChange(of: garden.plants) { _, _ in
+            Task { await rescheduleNotifications() }
         }
     }
 
@@ -59,6 +109,62 @@ struct MainTabView: View {
             PlantDetailView(plantId: id)
         case .careGuide(let id):
             CareGuideView(plantId: id)
+        case .speciesDetail(let id):
+            SpeciesDetailView(speciesId: id)
         }
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(theme.onPrimary)
+            Text(message)
+                .font(theme.footnoteFont)
+                .foregroundStyle(theme.onPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                garden.errorMessage = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(theme.onPrimary)
+            }
+            .accessibilityLabel("Dismiss error")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(theme.error)
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.md))
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+    }
+
+    private var missingCaptureView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(theme.warning)
+            Text("That photo didn’t make it through. Please capture again.")
+                .font(theme.subheadFont)
+                .foregroundStyle(theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Button("Back to Scan") {
+                coordinator.scanPath = NavigationPath()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(theme.primary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.background)
+    }
+
+    private func rescheduleNotifications() async {
+        await NotificationService.reschedule(
+            wateringEnabled: wateringReminders,
+            scanNudgesEnabled: scanNudges,
+            reminderTimeSeconds: reminderTimeRaw,
+            plants: garden.plants
+        )
     }
 }

@@ -23,13 +23,17 @@ final class GardenStore: ObservableObject {
         defer { isLoading = false }
 
         if isGuest {
-            seedLocalDemoDataIfNeeded(userId: userId)
+            if DemoContent.isEnabled {
+                seedLocalDemoDataIfNeeded(userId: userId)
+            }
             plants = LocalGardenStore.loadPlants()
             reminders = LocalGardenStore.loadReminders()
             return
         }
 
-        await seedDemoDataIfNeeded(userId: userId)
+        if DemoContent.isEnabled {
+            await seedDemoDataIfNeeded(userId: userId)
+        }
         async let plantsTask: [Plant] = fetchPlants(userId: userId)
         async let remindersTask: [Reminder] = fetchReminders(userId: userId)
         do {
@@ -92,6 +96,7 @@ final class GardenStore: ObservableObject {
                 nextWateringDate: plant.nextWateringDate,
                 wateringIntervalDays: plant.wateringIntervalDays,
                 wateringAmountMl: plant.wateringAmountMl,
+                placement: plant.placement,
                 addedDate: Self.dateFormatter.string(from: Date()),
                 createdAt: ISO8601DateFormatter().string(from: Date())
             )
@@ -109,37 +114,60 @@ final class GardenStore: ObservableObject {
             plants.insert(created, at: 0)
             return created
         }
-        throw NSError(domain: "GardenStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not create plant."])
+        throw NSError(domain: "GardenStore", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not create plant.")])
     }
 
-    func updatePlant(id: UUID, healthScore: Int? = nil, nextWateringDate: String? = nil, wateringIntervalDays: Int? = nil, wateringAmountMl: Int? = nil, photoUrl: String? = nil) async {
+    func updatePlant(
+        id: UUID,
+        nickname: String? = nil,
+        healthScore: Int? = nil,
+        nextWateringDate: String? = nil,
+        wateringIntervalDays: Int? = nil,
+        wateringAmountMl: Int? = nil,
+        photoUrl: String? = nil,
+        placement: PlantPlacement? = nil
+    ) async {
         if isGuest {
             if let idx = plants.firstIndex(where: { $0.id == id }) {
+                if let nickname { plants[idx].nickname = nickname }
                 if let healthScore { plants[idx].healthScore = healthScore }
                 if let nextWateringDate { plants[idx].nextWateringDate = nextWateringDate }
                 if let wateringIntervalDays { plants[idx].wateringIntervalDays = wateringIntervalDays }
                 if let wateringAmountMl { plants[idx].wateringAmountMl = wateringAmountMl }
                 if let photoUrl { plants[idx].photoUrl = photoUrl }
+                if let placement { plants[idx].placement = placement }
                 LocalGardenStore.savePlants(plants)
             }
             return
         }
         struct Patch: Encodable {
+            var nickname: String?
             var health_score: Int?
             var next_watering_date: String?
             var watering_interval_days: Int?
             var watering_amount_ml: Int?
             var photo_url: String?
+            var placement: String?
         }
-        let patch = Patch(health_score: healthScore, next_watering_date: nextWateringDate, watering_interval_days: wateringIntervalDays, watering_amount_ml: wateringAmountMl, photo_url: photoUrl)
+        let patch = Patch(
+            nickname: nickname,
+            health_score: healthScore,
+            next_watering_date: nextWateringDate,
+            watering_interval_days: wateringIntervalDays,
+            watering_amount_ml: wateringAmountMl,
+            photo_url: photoUrl,
+            placement: placement?.rawValue
+        )
         do {
             try await SupabaseManager.client.from("plants").update(patch).eq("id", value: id).execute()
             if let idx = plants.firstIndex(where: { $0.id == id }) {
+                if let nickname { plants[idx].nickname = nickname }
                 if let healthScore { plants[idx].healthScore = healthScore }
                 if let nextWateringDate { plants[idx].nextWateringDate = nextWateringDate }
                 if let wateringIntervalDays { plants[idx].wateringIntervalDays = wateringIntervalDays }
                 if let wateringAmountMl { plants[idx].wateringAmountMl = wateringAmountMl }
                 if let photoUrl { plants[idx].photoUrl = photoUrl }
+                if let placement { plants[idx].placement = placement }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -180,7 +208,8 @@ final class GardenStore: ObservableObject {
                 capturedAt: ISO8601DateFormatter().string(from: Date()),
                 confidence: scan.confidence,
                 healthStatus: scan.healthStatus,
-                healthScore: scan.healthScore
+                healthScore: scan.healthScore,
+                aiResultJson: scan.aiResultJson
             )
             var scans = LocalGardenStore.loadScans()
             scans.insert(created, at: 0)
@@ -194,7 +223,7 @@ final class GardenStore: ObservableObject {
             .execute()
             .value
         guard let created = inserted.first else {
-            throw NSError(domain: "GardenStore", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not save scan."])
+            throw NSError(domain: "GardenStore", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not save scan.")])
         }
         return created
     }
@@ -244,7 +273,7 @@ final class GardenStore: ObservableObject {
             .execute()
             .value
         guard let created = inserted.first else {
-            throw NSError(domain: "GardenStore", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not save care guide."])
+            throw NSError(domain: "GardenStore", code: 3, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not save care guide.")])
         }
         return created
     }
@@ -276,7 +305,7 @@ final class GardenStore: ObservableObject {
             .execute()
             .value
         guard let created = inserted.first else {
-            throw NSError(domain: "GardenStore", code: 4, userInfo: [NSLocalizedDescriptionKey: "Could not create reminder."])
+            throw NSError(domain: "GardenStore", code: 4, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not create reminder.")])
         }
         reminders.append(created)
         reminders.sort { $0.dueAt < $1.dueAt }
@@ -347,7 +376,7 @@ final class GardenStore: ObservableObject {
         seededUserIds.insert(userId)
         guard let existing = try? await fetchPlants(userId: userId), existing.isEmpty else { return }
 
-        for seed in Self.demoSeeds {
+        for (index, seed) in Self.demoSeeds.enumerated() {
             let newPlant = NewPlant(
                 userId: userId,
                 nickname: seed.nickname,
@@ -358,7 +387,8 @@ final class GardenStore: ObservableObject {
                 healthScore: seed.score,
                 nextWateringDate: Self.daysFromNow(seed.waterOffset),
                 wateringIntervalDays: seed.interval,
-                wateringAmountMl: seed.amount
+                wateringAmountMl: seed.amount,
+                placement: index.isMultiple(of: 2) ? .indoor : .balcony
             )
             if let created = try? await addPlant(newPlant) {
                 let due = Calendar.current.date(byAdding: .day, value: seed.waterOffset, to: Date()) ?? Date()
@@ -382,7 +412,7 @@ final class GardenStore: ObservableObject {
         var seededPlants: [Plant] = []
         var seededReminders: [Reminder] = []
 
-        for seed in Self.demoSeeds {
+        for (index, seed) in Self.demoSeeds.enumerated() {
             let plant = Plant(
                 id: UUID(),
                 userId: userId,
@@ -395,6 +425,7 @@ final class GardenStore: ObservableObject {
                 nextWateringDate: Self.daysFromNow(seed.waterOffset),
                 wateringIntervalDays: seed.interval,
                 wateringAmountMl: seed.amount,
+                placement: index.isMultiple(of: 2) ? .indoor : .balcony,
                 addedDate: Self.dateFormatter.string(from: Date()),
                 createdAt: ISO8601DateFormatter().string(from: Date())
             )

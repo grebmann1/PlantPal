@@ -12,14 +12,23 @@ struct PlantPalApp: App {
         Spark.configure(
             Spark.Configuration.builder(apiKey: SparkFlashConfig.apiKey).build()
         )
+        // Re-apply saved language so Bundle lookups match the in-app choice.
+        AppLanguage.apply(AppLanguage.stored)
     }
 
     @AppStorage("pp.darkMode") private var darkModeOn = false
+    @AppStorage(AppLanguage.Keys.appLanguage) private var appLanguageRaw = AppLanguage.system.rawValue
+
+    private var appLanguage: AppLanguage {
+        AppLanguage(rawValue: appLanguageRaw) ?? .system
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(darkModeOn ? .dark : .light)
+                .environment(\.locale, appLanguage.locale)
+                .id(appLanguageRaw)
+                .preferredColorScheme(darkModeOn ? .dark : nil)
         }
     }
 }

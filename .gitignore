@@ -1,0 +1,19 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Xcode / build
+DerivedData/
+.derivedData/
+*.xcuserdata
+*.xcuserstate
+
+# Supabase local linkage
+supabase/.temp/
+
+# Local previews / scratch
+.preview/
+
+# macOS
+.DS_Store
