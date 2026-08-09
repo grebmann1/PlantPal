@@ -14,12 +14,18 @@ struct RemotePhoto: View {
     var body: some View {
         ZStack {
             if let localImage {
-                Image(uiImage: localImage).resizable().aspectRatio(contentMode: contentMode)
+                Image(uiImage: localImage)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
             } else if let url {
                 AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.25))) { phase in
                     switch phase {
                     case .success(let image):
-                        image.resizable().aspectRatio(contentMode: contentMode)
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: contentMode)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     case .failure:
                         placeholder
                     case .empty:
@@ -34,6 +40,9 @@ struct RemotePhoto: View {
                 placeholder.overlay(ProgressView())
             }
         }
+        // Never propose the photo's intrinsic pixel size to parents (was blowing up garden tiles).
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .clipped()
         .task(id: path) { await resolve() }
     }
 

@@ -51,7 +51,7 @@ struct AuthView: View {
                     Button {
                         Task {
                             await viewModel.submit()
-                            if appState.isSignedIn { applyIntent() }
+                            if appState.session != nil { applyIntent() }
                         }
                     } label: {
                         if viewModel.isLoading {
@@ -92,7 +92,7 @@ struct AuthView: View {
                 }, onCompletion: { result in
                     Task {
                         await viewModel.handleAppleCompletion(result)
-                        if appState.isSignedIn { applyIntent() }
+                        if appState.session != nil { applyIntent() }
                     }
                 })
                 .signInWithAppleButtonStyle(.black)
@@ -107,6 +107,7 @@ struct AuthView: View {
     }
 
     private func applyIntent() {
+        appState.clearGuestMode()
         coordinator.selectedTab = postSignInTab
         if postSignInTab == .scan {
             coordinator.scanPresetIntent = ScanIntent(mode: .identify, plantId: nil)

@@ -18,7 +18,7 @@ final class AuthViewModel: ObservableObject {
 
     func submit() async {
         guard isValid else {
-            errorMessage = "Enter a valid email and a password with at least 6 characters."
+            errorMessage = String(localized: "Enter a valid email and a password with at least 6 characters.")
             return
         }
         isLoading = true
@@ -47,7 +47,7 @@ final class AuthViewModel: ObservableObject {
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let tokenData = credential.identityToken,
                   let idToken = String(data: tokenData, encoding: .utf8) else {
-                errorMessage = "Apple sign-in did not return a valid credential."
+                errorMessage = String(localized: "Apple sign-in did not return a valid credential.")
                 return
             }
             isLoading = true
@@ -57,7 +57,7 @@ final class AuthViewModel: ObservableObject {
                     credentials: OpenIDConnectCredentials(provider: .apple, idToken: idToken)
                 )
             } catch {
-                errorMessage = "Apple sign-in isn't fully enabled yet on the backend. Please use email instead, or try again shortly."
+                errorMessage = String(localized: "Apple sign-in isn't fully enabled yet on the backend. Please use email instead, or try again shortly.")
             }
         }
     }

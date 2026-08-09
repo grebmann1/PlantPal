@@ -1,0 +1,57 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleDisplayName": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal nutzt deine Kamera, um Pflanzen zu bestimmen und ihre Gesundheit zu prüfen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal utilise votre appareil photo pour identifier les plantes et vérifier leur santé."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal kann Fotos aus deiner Mediathek nutzen, um Pflanzen zu bestimmen, die Gesundheit zu prüfen und private Bilder zu deinen Pflanzenakten hinzuzufügen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlantPal peut utiliser les photos de votre photothèque pour identifier les plantes, vérifier leur santé et ajouter des photos privées à vos fiches plantes."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

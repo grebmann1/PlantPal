@@ -15,9 +15,9 @@ enum HealthStatus: String, Codable {
 
     var shortLabel: String {
         switch self {
-        case .healthy: return "Healthy"
-        case .needsAttention: return "Needs attention"
-        case .atRisk: return "At risk"
+        case .healthy: return String(localized: "Healthy")
+        case .needsAttention: return String(localized: "Needs attention")
+        case .atRisk: return String(localized: "At risk")
         }
     }
 }

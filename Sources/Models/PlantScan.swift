@@ -10,6 +10,7 @@ struct PlantScan: Codable, Identifiable, Hashable {
     var confidence: Double?
     var healthStatus: String?
     var healthScore: Int?
+    var aiResultJson: AIScanPayload?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -21,5 +22,6 @@ struct PlantScan: Codable, Identifiable, Hashable {
         case confidence
         case healthStatus = "health_status"
         case healthScore = "health_score"
+        case aiResultJson = "ai_result_json"
     }
 }

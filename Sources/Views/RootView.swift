@@ -8,7 +8,8 @@ struct RootView: View {
         Group {
             if !appState.isReady {
                 ZStack {
-                    theme.background.ignoresSafeArea()
+                    JournalPaperBackground(showMarginRail: false)
+                        .ignoresSafeArea()
                     ProgressView()
                 }
             } else if appState.isSignedIn {

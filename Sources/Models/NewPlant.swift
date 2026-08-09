@@ -11,9 +11,10 @@ struct NewPlant: Codable {
     var nextWateringDate: String?
     var wateringIntervalDays: Int?
     var wateringAmountMl: Int?
+    var placement: PlantPlacement
 
     enum CodingKeys: String, CodingKey {
-        case nickname, family
+        case nickname, family, placement
         case userId = "user_id"
         case speciesCommonName = "species_common_name"
         case speciesLatinName = "species_latin_name"
@@ -22,5 +23,31 @@ struct NewPlant: Codable {
         case nextWateringDate = "next_watering_date"
         case wateringIntervalDays = "watering_interval_days"
         case wateringAmountMl = "watering_amount_ml"
+    }
+
+    init(
+        userId: UUID,
+        nickname: String,
+        speciesCommonName: String? = nil,
+        speciesLatinName: String? = nil,
+        family: String? = nil,
+        photoUrl: String? = nil,
+        healthScore: Int? = nil,
+        nextWateringDate: String? = nil,
+        wateringIntervalDays: Int? = nil,
+        wateringAmountMl: Int? = nil,
+        placement: PlantPlacement = .indoor
+    ) {
+        self.userId = userId
+        self.nickname = nickname
+        self.speciesCommonName = speciesCommonName
+        self.speciesLatinName = speciesLatinName
+        self.family = family
+        self.photoUrl = photoUrl
+        self.healthScore = healthScore
+        self.nextWateringDate = nextWateringDate
+        self.wateringIntervalDays = wateringIntervalDays
+        self.wateringAmountMl = wateringAmountMl
+        self.placement = placement
     }
 }

@@ -1,0 +1,11 @@
+[api]
+enabled = true
+
+[functions.perenual-proxy]
+verify_jwt = true
+
+[functions.ai-proxy]
+verify_jwt = true
+
+[functions.translate-proxy]
+verify_jwt = true

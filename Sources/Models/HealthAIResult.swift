@@ -1,6 +1,6 @@
 import Foundation
 
-struct HealthAIResult: Codable {
+struct HealthAIResult: Codable, Hashable {
     var status: String
     var healthScore: Int
     var issues: [HealthIssue]

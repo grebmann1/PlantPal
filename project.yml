@@ -3,6 +3,12 @@ options:
   bundleIdPrefix: ai.mwm
   deploymentTarget:
     iOS: "18.0"
+  developmentRegion: en
+  knownRegions:
+    - en
+    - Base
+    - de
+    - fr
   xcodeVersion: "26.0"
 packages:
   Spark:
@@ -21,7 +27,9 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_ALLOWED: "YES"
+        DEVELOPMENT_TEAM: S7RVD35N33
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_CFBundleDisplayName: PlantPal
@@ -30,7 +38,8 @@ targets:
         INFOPLIST_KEY_NSCameraUsageDescription: PlantPal uses your camera to identify
           plants and check their health.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: PlantPal can use photos from
-          your library to identify plants and check their health.
+          your library to identify plants, check health, and add private pictures
+          to your plant records.
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
