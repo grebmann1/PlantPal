@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SpeciesCatalogView: View {
     @EnvironmentObject private var catalog: SpeciesCatalogStore
+    @EnvironmentObject private var speciesCollections: SpeciesCollectionStore
     @EnvironmentObject private var coordinator: Coordinator
     @Environment(\.appTheme) private var theme
 
@@ -21,7 +22,7 @@ struct SpeciesCatalogView: View {
 
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    searchControls
+                    collectionSections
 
                     if catalog.isLoading && catalog.results.isEmpty {
                         ProgressView()
@@ -48,6 +49,18 @@ struct SpeciesCatalogView: View {
             showMarginRail: true,
             marginNote: "Species index"
         )
+        .safeAreaInset(edge: .top, spacing: 0) {
+            searchControls
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+                .background(theme.background)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(theme.separator)
+                        .frame(height: 1)
+                }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { EmptyView() }
@@ -60,6 +73,85 @@ struct SpeciesCatalogView: View {
         }
         .onChange(of: query) { _, newValue in
             scheduleSearch(newValue)
+        }
+    }
+
+    private var collectionSections: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if speciesCollections.isLoading {
+                ProgressView("Loading your plant lists…")
+                    .font(theme.footnoteFont)
+                    .tint(theme.primary)
+            } else {
+                collectionSection(
+                    title: "FAVORITES",
+                    items: speciesCollections.favorites,
+                    emptyMessage: "Tap a heart to keep a species here."
+                )
+                collectionSection(
+                    title: "RECENTLY VIEWED",
+                    items: speciesCollections.recentlyViewed,
+                    emptyMessage: "Species you open will appear here."
+                )
+            }
+
+            if let error = speciesCollections.errorMessage {
+                Text(error)
+                    .font(theme.footnoteFont)
+                    .foregroundStyle(theme.error)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func collectionSection(
+        title: String,
+        items: [SpeciesCatalog],
+        emptyMessage: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.3)
+                .foregroundStyle(theme.textTertiary)
+
+            if items.isEmpty {
+                Text(emptyMessage)
+                    .font(theme.footnoteFont)
+                    .foregroundStyle(theme.textSecondary)
+                    .padding(.vertical, 10)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 12) {
+                        ForEach(items) { species in
+                            collectionCard(species)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func collectionCard(_ species: SpeciesCatalog) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Button {
+                coordinator.goToSpeciesDetail(species.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 7) {
+                    CatalogPhoto(urlString: species.imageUrl)
+                        .frame(width: 144, height: 100)
+                        .clipShape(RoundedRectangle(cornerRadius: theme.radius.md))
+                    Text(species.displayName)
+                        .font(theme.subheadFont.weight(.semibold))
+                        .foregroundStyle(theme.textPrimary)
+                        .lineLimit(2)
+                }
+                .frame(width: 144, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            favoriteButton(for: species)
+                .padding(7)
         }
     }
 
@@ -118,15 +210,40 @@ struct SpeciesCatalogView: View {
     private var resultsGrid: some View {
         LazyVGrid(columns: columns, spacing: 16) {
             ForEach(Array(catalog.results.enumerated()), id: \.element.id) { index, species in
-                Button {
-                    coordinator.goToSpeciesDetail(species.id)
-                } label: {
-                    SpeciesCatalogTile(species: species, tall: index.isMultiple(of: 2))
+                ZStack(alignment: .topTrailing) {
+                    Button {
+                        coordinator.goToSpeciesDetail(species.id)
+                    } label: {
+                        SpeciesCatalogTile(species: species, tall: index.isMultiple(of: 2))
+                    }
+                    .buttonStyle(.plain)
+
+                    favoriteButton(for: species)
+                        .padding(7)
                 }
-                .buttonStyle(.plain)
                 .padding(.top, index.isMultiple(of: 2) ? 0 : 26)
             }
         }
+    }
+
+    private func favoriteButton(for species: SpeciesCatalog) -> some View {
+        Button {
+            Task { await speciesCollections.toggleFavorite(species) }
+        } label: {
+            Image(systemName: speciesCollections.isFavorite(species.id) ? "heart.fill" : "heart")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(theme.primary)
+                .frame(width: 32, height: 32)
+                .background(theme.surface.opacity(0.94))
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.12), radius: 3, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            speciesCollections.isFavorite(species.id)
+                ? "Remove \(species.displayName) from favorites"
+                : "Add \(species.displayName) to favorites"
+        )
     }
 
     private var loadMoreRow: some View {

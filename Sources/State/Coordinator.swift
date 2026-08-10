@@ -52,6 +52,7 @@ enum AppRoute: Hashable {
 /// Lightweight scan destinations — photo bytes live in ``Coordinator/scanCaptures``,
 /// not in the navigation path (large `Data` in `NavigationPath` breaks identify on device).
 enum ScanRoute: Hashable {
+    case preparation(UUID, ScanMode)
     case identification(UUID)
     case health(UUID)
 }
@@ -70,16 +71,20 @@ final class Coordinator: ObservableObject {
     /// Capture payloads keyed by scan route id (kept out of NavigationPath).
     private(set) var scanCaptures: [UUID: CaptureContext] = [:]
 
-    func pushIdentification(_ context: CaptureContext) {
+    func pushPreparation(_ context: CaptureContext, mode: ScanMode) {
         let id = UUID()
         scanCaptures[id] = context
-        scanPath.append(ScanRoute.identification(id))
+        scanPath.append(ScanRoute.preparation(id, mode))
     }
 
-    func pushHealth(_ context: CaptureContext) {
-        let id = UUID()
-        scanCaptures[id] = context
-        scanPath.append(ScanRoute.health(id))
+    func startIdentification(for captureId: UUID, context: CaptureContext) {
+        scanCaptures[captureId] = context
+        scanPath.append(ScanRoute.identification(captureId))
+    }
+
+    func startHealthAssessment(for captureId: UUID, context: CaptureContext) {
+        scanCaptures[captureId] = context
+        scanPath.append(ScanRoute.health(captureId))
     }
 
     func capture(for routeId: UUID) -> CaptureContext? {

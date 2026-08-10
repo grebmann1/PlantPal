@@ -5,6 +5,7 @@ struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var garden = GardenStore()
     @StateObject private var catalog = SpeciesCatalogStore()
+    @StateObject private var speciesCollections = SpeciesCollectionStore()
     @Environment(\.appTheme) private var theme
 
     @AppStorage("pp.wateringReminders") private var wateringReminders = true
@@ -34,6 +35,16 @@ struct MainTabView: View {
                     ScanPlantView()
                         .navigationDestination(for: ScanRoute.self) { route in
                             switch route {
+                            case .preparation(let captureId, let mode):
+                                if let context = coordinator.capture(for: captureId) {
+                                    ScanPhotoPreparationView(
+                                        captureId: captureId,
+                                        mode: mode,
+                                        context: context
+                                    )
+                                } else {
+                                    missingCaptureView
+                                }
                             case .identification(let captureId):
                                 if let context = coordinator.capture(for: captureId) {
                                     IdentificationResultView(captureId: captureId, context: context)
@@ -67,6 +78,7 @@ struct MainTabView: View {
         .tint(theme.primary)
         .environmentObject(garden)
         .environmentObject(catalog)
+        .environmentObject(speciesCollections)
         .safeAreaInset(edge: .top) {
             if let message = garden.errorMessage {
                 errorBanner(message)
@@ -87,13 +99,16 @@ struct MainTabView: View {
                 }
                 .environmentObject(garden)
                 .environmentObject(catalog)
+                .environmentObject(speciesCollections)
                 .environmentObject(appState)
                 .environmentObject(coordinator)
             }
         }
         .task(id: appState.effectiveUserId) {
             if let userId = appState.effectiveUserId {
-                await garden.loadAll(userId: userId, isGuest: appState.isGuest)
+                async let gardenLoad: Void = garden.loadAll(userId: userId, isGuest: appState.isGuest)
+                async let collectionLoad: Void = speciesCollections.load(userId: userId, isGuest: appState.isGuest)
+                _ = await (gardenLoad, collectionLoad)
                 await rescheduleNotifications()
             }
         }

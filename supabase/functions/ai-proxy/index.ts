@@ -18,10 +18,16 @@ interface ChatMessage {
   image_mime_type?: string;
 }
 
+interface RequestImage {
+  image_base64: string;
+  image_mime_type?: string;
+}
+
 interface RequestBody {
   task: Task;
   image_base64?: string;
   image_mime_type?: string;
+  images?: RequestImage[];
   species_latin_name?: string;
   species_common_name?: string;
   messages?: ChatMessage[];
@@ -253,6 +259,32 @@ function userContent(items: unknown[]) {
   return [{ role: "user", content: items }];
 }
 
+function requestImages(body: RequestBody): RequestImage[] {
+  const images = Array.isArray(body.images)
+    ? body.images
+      .filter((image) =>
+        image && typeof image.image_base64 === "string" &&
+        image.image_base64.length > 0
+      )
+      .slice(0, 5)
+    : [];
+  if (images.length > 0) return images;
+  if (body.image_base64) {
+    return [{
+      image_base64: body.image_base64,
+      image_mime_type: body.image_mime_type,
+    }];
+  }
+  return [];
+}
+
+function imageParts(images: RequestImage[]): unknown[] {
+  return images.map((image) => ({
+    type: "input_image",
+    image_url: `data:${image.image_mime_type ?? "image/jpeg"};base64,${image.image_base64}`,
+  }));
+}
+
 function normalizeMessages(raw: ChatMessage[] | undefined): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -329,18 +361,18 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (body.task === "identify") {
-      if (!body.image_base64) {
-        return jsonResponse({ error: "image_base64 is required for identify" }, 400);
+      const images = requestImages(body);
+      if (images.length === 0) {
+        return jsonResponse({ error: "at least one image is required for identify" }, 400);
       }
-      const mime = body.image_mime_type ?? "image/jpeg";
       const instructions =
         "You are a botanist. Identify the houseplant quickly and precisely from visible leaf shape, venation, texture, growth habit, and coloration. Return the best Latin binomial and up to 3 plausible alternatives. Keep descriptive fields concise. Also always populate: a 2-3 sentence general description of the species; its native_region (short phrase); mature_size (short phrase, indoor context); growth_rate (short phrase); toxicity (short phrase noting risk to pets/humans, or 'Non-toxic' if safe); and one short interesting fun_fact about the species. Use null only if truly identifiable information does not apply.";
       const items = [
-        { type: "input_text", text: "Identify this plant from the photo." },
         {
-          type: "input_image",
-          image_url: `data:${mime};base64,${body.image_base64}`,
+          type: "input_text",
+          text: "Identify this plant using all provided photos as views of the same specimen.",
         },
+        ...imageParts(images),
       ];
       const result = await buffered(
         IDENTIFY_MODEL,
@@ -353,21 +385,21 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body.task === "health") {
-      if (!body.image_base64) {
-        return jsonResponse({ error: "image_base64 is required for health" }, 400);
+      const images = requestImages(body);
+      if (images.length === 0) {
+        return jsonResponse({ error: "at least one image is required for health" }, 400);
       }
-      const mime = body.image_mime_type ?? "image/jpeg";
       const hint = body.species_latin_name
         ? ` The plant is a ${body.species_latin_name}.`
         : "";
       const instructions =
         `You are a plant pathologist. Assess visible plant health.${hint} Return a concise status, score, issues, and concrete recommendations.`;
       const items = [
-        { type: "input_text", text: "Assess this plant's health." },
         {
-          type: "input_image",
-          image_url: `data:${mime};base64,${body.image_base64}`,
+          type: "input_text",
+          text: "Assess this plant's health using all provided photos as views of the same specimen.",
         },
+        ...imageParts(images),
       ];
       const result = await buffered(
         HEALTH_MODEL,

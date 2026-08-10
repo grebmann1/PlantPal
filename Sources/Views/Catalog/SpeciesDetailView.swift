@@ -4,6 +4,7 @@ struct SpeciesDetailView: View {
     let speciesId: Int
 
     @EnvironmentObject private var catalog: SpeciesCatalogStore
+    @EnvironmentObject private var speciesCollections: SpeciesCollectionStore
     @EnvironmentObject private var garden: GardenStore
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var coordinator: Coordinator
@@ -18,39 +19,62 @@ struct SpeciesDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                hero
+                if isLoading {
+                    PlantAnalysisLoadingView(
+                        eyebrow: String(localized: "LOADING SPECIES"),
+                        status: String(localized: "Gathering botanical details…")
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 28)
+                } else {
+                    if species != nil {
+                        hero
+                    }
 
-                VStack(alignment: .leading, spacing: 18) {
-                    if isLoading {
-                        ProgressView()
-                            .tint(theme.primary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 28)
-                    } else if let errorMessage {
-                        Text(errorMessage)
-                            .font(theme.subheadFont)
-                            .foregroundStyle(theme.error)
-                            .padding(.top, 20)
-                    } else if let species {
-                        titleBlock(species)
-                        careStats(species)
-                        if let description = species.description, !description.isEmpty {
-                            aboutBlock(description)
-                        }
-                        addToGardenButton(species)
-                        if let license = species.imageLicense, !license.isEmpty {
-                            attribution(license, url: species.imageLicenseUrl)
+                    VStack(alignment: .leading, spacing: 18) {
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(theme.subheadFont)
+                                .foregroundStyle(theme.error)
+                                .padding(.top, 20)
+                        } else if let species {
+                            titleBlock(species)
+                            careStats(species)
+                            if let description = species.description, !description.isEmpty {
+                                aboutBlock(description)
+                            }
+                            addToGardenButton(species)
+                            if let license = species.imageLicense, !license.isEmpty {
+                                attribution(license, url: species.imageLicenseUrl)
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
+                    .offset(y: species == nil ? 0 : -28)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
-                .offset(y: -28)
             }
         }
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("Species")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let species {
+                    Button {
+                        Task { await speciesCollections.toggleFavorite(species) }
+                    } label: {
+                        Image(systemName: speciesCollections.isFavorite(species.id) ? "heart.fill" : "heart")
+                            .foregroundStyle(theme.primary)
+                    }
+                    .accessibilityLabel(
+                        speciesCollections.isFavorite(species.id)
+                            ? "Remove \(species.displayName) from favorites"
+                            : "Add \(species.displayName) to favorites"
+                    )
+                }
+            }
+        }
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await load() }
     }
@@ -227,7 +251,9 @@ struct SpeciesDetailView: View {
         defer { isLoading = false }
         do {
             let loaded = try await catalog.details(for: speciesId)
-            species = await SpeciesI18nService.localizeCatalog(loaded)
+            let localized = await SpeciesI18nService.localizeCatalog(loaded)
+            species = localized
+            await speciesCollections.recordViewed(localized)
         } catch {
             errorMessage = error.localizedDescription
         }

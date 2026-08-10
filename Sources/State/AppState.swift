@@ -17,6 +17,9 @@ final class AppState: ObservableObject {
             guard let self else { return }
             for await change in SupabaseManager.client.auth.authStateChanges {
                 self.session = change.session
+                if change.session != nil {
+                    self.clearGuestMode()
+                }
                 self.isReady = true
             }
         }

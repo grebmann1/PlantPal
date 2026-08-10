@@ -6,6 +6,7 @@ struct IdentificationResultView: View {
     let context: CaptureContext
     @EnvironmentObject private var garden: GardenStore
     @EnvironmentObject private var catalog: SpeciesCatalogStore
+    @EnvironmentObject private var speciesCollections: SpeciesCollectionStore
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var coordinator: Coordinator
     @Environment(\.dismiss) private var dismiss
@@ -27,15 +28,6 @@ struct IdentificationResultView: View {
     @State private var alternateCatalog: [String: SpeciesCatalog] = [:]
     @State private var photos: [Data] = []
     @State private var selectedPhotoIndex = 0
-    @State private var showAddPhotoSource = false
-    @State private var showCameraPicker = false
-    @State private var showLibraryPicker = false
-
-    private let maxPhotos = 5
-
-    private var primaryImageData: Data {
-        photos.first ?? context.imageData
-    }
 
     private var scannedAtLabel: String {
         let f = DateFormatter()
@@ -98,28 +90,29 @@ struct IdentificationResultView: View {
                     .foregroundStyle(theme.primary)
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                if let catalogMatch {
+                    Button {
+                        Task { await speciesCollections.toggleFavorite(catalogMatch) }
+                    } label: {
+                        Image(
+                            systemName: speciesCollections.isFavorite(catalogMatch.id)
+                                ? "heart.fill"
+                                : "heart"
+                        )
+                        .foregroundStyle(theme.primary)
+                    }
+                    .accessibilityLabel(
+                        speciesCollections.isFavorite(catalogMatch.id)
+                            ? "Remove \(catalogMatch.displayName) from favorites"
+                            : "Add \(catalogMatch.displayName) to favorites"
+                    )
+                }
+            }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
         .sheet(isPresented: $showManualSearch) {
             manualSearchSheet
-        }
-        .confirmationDialog("Add another photo", isPresented: $showAddPhotoSource, titleVisibility: .visible) {
-            Button("Take photo") { showCameraPicker = true }
-            Button("Choose from library") { showLibraryPicker = true }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Extra angles help — all stay private on this plant.")
-        }
-        .fullScreenCover(isPresented: $showCameraPicker) {
-            ImagePicker(sourceType: .camera) { image in
-                appendPhoto(image)
-            }
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showLibraryPicker) {
-            ImagePicker(sourceType: .photoLibrary) { image in
-                appendPhoto(image)
-            }
         }
         .task {
             if photos.isEmpty {
@@ -182,7 +175,7 @@ struct IdentificationResultView: View {
             photoStrip
                 .padding(.horizontal, 20)
 
-            Text("\(photos.count) of \(maxPhotos) photos · private to you")
+            Text("\(photos.count) photo\(photos.count == 1 ? "" : "s") analyzed · private to you")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(theme.textTertiary)
                 .padding(.horizontal, 24)
@@ -218,44 +211,9 @@ struct IdentificationResultView: View {
                     }
                     .buttonStyle(.plain)
                 }
-
-                if photos.count < maxPhotos {
-                    Button {
-                        showAddPhotoSource = true
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("ADD")
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(0.8)
-                        }
-                        .foregroundStyle(theme.primary)
-                        .frame(width: 56, height: 72)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                                .foregroundStyle(theme.primary.opacity(0.45))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Add another photo of this plant")
-                }
             }
             .padding(.vertical, 2)
         }
-    }
-
-    private func appendPhoto(_ image: UIImage) {
-        guard photos.count < maxPhotos else { return }
-        let data = ImageCompressor.prepareForAI(image)
-        guard !data.isEmpty else { return }
-        photos.append(data)
-        selectedPhotoIndex = photos.count - 1
-        coordinator.updateCapture(
-            for: captureId,
-            CaptureContext(images: photos, plantId: context.plantId)
-        )
     }
 
     private func matchBadge(_ confidence: Double) -> some View {
@@ -279,29 +237,10 @@ struct IdentificationResultView: View {
     // MARK: - Loading / Error
 
     private var loadingCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                ProgressView().tint(theme.primary)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("IDENTIFYING")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(1.4)
-                        .foregroundStyle(theme.primary)
-                    Text(identificationStatus)
-                        .font(theme.subheadFont)
-                        .foregroundStyle(theme.textSecondary)
-                }
-                Spacer()
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg))
-        .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Plant identification in progress")
-        .accessibilityValue(identificationStatus)
+        PlantAnalysisLoadingView(
+            eyebrow: String(localized: "IDENTIFYING"),
+            status: identificationStatus
+        )
     }
 
     private func errorState(_ message: String) -> some View {
@@ -778,7 +717,8 @@ struct IdentificationResultView: View {
         catalogMatch = nil
         alternateCatalog = [:]
         do {
-            let identified = try await AIProxyService.identify(imageData: primaryImageData)
+            let album = photos.isEmpty ? context.images : photos
+            let identified = try await AIProxyService.identify(imageData: album)
             // Persist English canonical profile before localizing for display.
             await AISpeciesCacheService.upsertProfile(from: identified)
             result = await SpeciesI18nService.localizeIdentification(identified)
@@ -793,7 +733,11 @@ struct IdentificationResultView: View {
     }
 
     private func enrichFromCatalog(latinName: String) async {
-        catalogMatch = await catalog.lookup(scientificName: latinName)
+        let match = await catalog.lookup(scientificName: latinName)
+        catalogMatch = match
+        if let match {
+            await speciesCollections.recordViewed(match)
+        }
         await enrichAlternateCatalogPhotos()
     }
 
@@ -821,17 +765,24 @@ struct IdentificationResultView: View {
         do {
             let album = photos.isEmpty ? [context.imageData] : photos
             var uploadedPaths: [String] = []
+            var uploadError: Error?
             for data in album {
-                let path = try await StorageService.upload(
-                    userId: userId,
-                    imageData: data,
-                    folder: "plants",
-                    isGuest: appState.isGuest
-                )
-                uploadedPaths.append(path)
+                do {
+                    let path = try await StorageService.upload(
+                        userId: userId,
+                        imageData: data,
+                        folder: "plants",
+                        isGuest: appState.isGuest
+                    )
+                    uploadedPaths.append(path)
+                } catch {
+                    uploadError = error
+                }
             }
             guard let photoPath = uploadedPaths.first else {
-                errorMessage = String(localized: "Couldn't add this plant: no photo to save.")
+                errorMessage = String(
+                    localized: "Couldn't add this plant: \(uploadError?.localizedDescription ?? "no photo to save")"
+                )
                 return
             }
 
@@ -849,6 +800,11 @@ struct IdentificationResultView: View {
                 wateringAmountMl: 250
             )
             let created = try await garden.addPlant(newPlant)
+            if uploadedPaths.count < album.count {
+                garden.errorMessage = String(
+                    localized: "Plant added with \(uploadedPaths.count) of \(album.count) photos."
+                )
+            }
             let payload: AIScanPayload? = result.map { .identify($0) }
             do {
                 for (index, path) in uploadedPaths.enumerated() {

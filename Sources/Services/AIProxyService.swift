@@ -3,11 +3,17 @@ import Foundation
 import UIKit
 import Supabase
 
+struct AIProxyImage: Encodable {
+    var image_base64: String
+    var image_mime_type: String
+}
+
 struct AIProxyRequest: Encodable {
     var task: String
     var stream: Bool? = nil
     var image_base64: String? = nil
     var image_mime_type: String? = nil
+    var images: [AIProxyImage]? = nil
     var species_latin_name: String? = nil
     var species_common_name: String? = nil
     var messages: [PlantExpertChatMessage.Wire]? = nil
@@ -79,33 +85,59 @@ enum AIProxyError: LocalizedError {
 }
 
 enum AIProxyService {
-    static func identify(imageData: Data) async throws -> IdentificationAIResult {
-        let preparedData = ImageCompressor.prepareForAI(imageData)
-        guard !preparedData.isEmpty, UIImage(data: preparedData) != nil else {
+    static func identify(imageData: [Data]) async throws -> IdentificationAIResult {
+        let preparedImages = try prepareImages(imageData)
+        guard let primary = preparedImages.first else {
             throw AIProxyError.failed
         }
         let request = AIProxyRequest(
             task: "identify",
-            image_base64: preparedData.base64EncodedString(),
-            image_mime_type: "image/jpeg"
+            image_base64: preparedImages.count == 1 ? primary.image_base64 : nil,
+            image_mime_type: preparedImages.count == 1 ? primary.image_mime_type : nil,
+            images: preparedImages.count > 1 ? preparedImages : nil
         )
-        let envelope: IdentifyEnvelope = try await invoke(request, timeout: 90)
+        let envelope: IdentifyEnvelope = try await invoke(
+            request,
+            timeout: timeout(for: preparedImages.count)
+        )
         return envelope.result
     }
 
-    static func health(imageData: Data, speciesLatinName: String?) async throws -> HealthAIResult {
-        let preparedData = ImageCompressor.prepareForAI(imageData)
-        guard !preparedData.isEmpty, UIImage(data: preparedData) != nil else {
+    static func health(imageData: [Data], speciesLatinName: String?) async throws -> HealthAIResult {
+        let preparedImages = try prepareImages(imageData)
+        guard let primary = preparedImages.first else {
             throw AIProxyError.failed
         }
         let request = AIProxyRequest(
             task: "health",
-            image_base64: preparedData.base64EncodedString(),
-            image_mime_type: "image/jpeg",
+            image_base64: preparedImages.count == 1 ? primary.image_base64 : nil,
+            image_mime_type: preparedImages.count == 1 ? primary.image_mime_type : nil,
+            images: preparedImages.count > 1 ? preparedImages : nil,
             species_latin_name: speciesLatinName
         )
-        let envelope: HealthEnvelope = try await invoke(request, timeout: 90)
+        let envelope: HealthEnvelope = try await invoke(
+            request,
+            timeout: timeout(for: preparedImages.count)
+        )
         return envelope.result
+    }
+
+    private static func prepareImages(_ images: [Data]) throws -> [AIProxyImage] {
+        let prepared = images.prefix(5).compactMap { imageData -> AIProxyImage? in
+            guard !imageData.isEmpty, UIImage(data: imageData) != nil else { return nil }
+            return AIProxyImage(
+                image_base64: imageData.base64EncodedString(),
+                image_mime_type: "image/jpeg"
+            )
+        }
+        guard !prepared.isEmpty else {
+            throw AIProxyError.failed
+        }
+        return prepared
+    }
+
+    private static func timeout(for imageCount: Int) -> TimeInterval {
+        min(180, 90 + TimeInterval(max(0, imageCount - 1) * 20))
     }
 
     static func careGuide(speciesLatinName: String?, speciesCommonName: String?) async throws -> CareGuideAIResult {

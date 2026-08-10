@@ -37,15 +37,12 @@ struct HealthAssessmentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if isLoading {
-                    HStack {
-                        ProgressView()
-                        Text("Assessing plant health…")
-                            .font(theme.subheadFont)
-                            .foregroundStyle(theme.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
+                    PlantAnalysisLoadingView(
+                        eyebrow: String(localized: "HEALTH CHECK"),
+                        status: String(localized: "Assessing plant health…")
+                    )
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
                 } else if let errorMessage {
                     errorBlock(errorMessage)
                         .padding(20)
@@ -506,7 +503,10 @@ struct HealthAssessmentView: View {
         errorMessage = nil
         showDemoFallback = false
         do {
-            result = try await AIProxyService.health(imageData: context.imageData, speciesLatinName: plant?.speciesLatinName)
+            result = try await AIProxyService.health(
+                imageData: context.images,
+                speciesLatinName: plant?.speciesLatinName
+            )
         } catch {
             let friendly = AIProxyError.from(error)
             errorMessage = friendly.localizedDescription
@@ -519,24 +519,52 @@ struct HealthAssessmentView: View {
         guard let userId = appState.effectiveUserId, let plantId = attachedPlantId else { return }
         isSaving = true
         defer { isSaving = false }
-        do {
-            let path = try await StorageService.upload(userId: userId, imageData: context.imageData, folder: "health", isGuest: appState.isGuest)
-            _ = try await garden.addScan(
-                NewScan(
+        var paths: [String] = []
+        var lastError: Error?
+        for imageData in context.images {
+            do {
+                let path = try await StorageService.upload(
                     userId: userId,
-                    plantId: plantId,
-                    photoUrl: path,
-                    scanType: "health",
-                    confidence: nil,
-                    healthStatus: result.status,
-                    healthScore: result.healthScore,
-                    aiResultJson: .health(result)
+                    imageData: imageData,
+                    folder: "health",
+                    isGuest: appState.isGuest
                 )
-            )
-            await garden.updatePlant(id: plantId, healthScore: result.healthScore, photoUrl: path)
-            coordinator.goToPlantDetail(plantId)
-        } catch {
-            saveNotice = String(localized: "Couldn't save this assessment: \(error.localizedDescription)")
+                let isPrimary = paths.isEmpty
+                _ = try await garden.addScan(
+                    NewScan(
+                        userId: userId,
+                        plantId: plantId,
+                        photoUrl: path,
+                        scanType: isPrimary ? "health" : "log",
+                        confidence: nil,
+                        healthStatus: isPrimary ? result.status : nil,
+                        healthScore: isPrimary ? result.healthScore : nil,
+                        aiResultJson: isPrimary ? .health(result) : nil
+                    )
+                )
+                paths.append(path)
+            } catch {
+                lastError = error
+            }
         }
+
+        guard !paths.isEmpty else {
+            saveNotice = String(
+                localized: "Couldn't save this assessment: \(lastError?.localizedDescription ?? "Unknown error")"
+            )
+            return
+        }
+
+        await garden.updatePlant(
+            id: plantId,
+            healthScore: result.healthScore,
+            photoUrl: paths.first
+        )
+        if paths.count < context.images.count {
+            garden.errorMessage = String(
+                localized: "Saved \(paths.count) of \(context.images.count) assessment photos."
+            )
+        }
+        coordinator.goToPlantDetail(plantId)
     }
 }

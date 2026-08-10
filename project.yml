@@ -67,3 +67,14 @@ targets:
     sources:
     - BuildScreenshots
     type: bundle.ui-testing
+  PlantPalTests:
+    dependencies:
+    - target: PlantPal
+    platform: iOS
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: true
+    sources:
+    - PlantPalTests
+    type: bundle.unit-test

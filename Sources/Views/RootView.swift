@@ -10,7 +10,14 @@ struct RootView: View {
                 ZStack {
                     JournalPaperBackground(showMarginRail: false)
                         .ignoresSafeArea()
-                    ProgressView()
+                    ScrollView {
+                        PlantAnalysisLoadingView(
+                            eyebrow: String(localized: "PLANTPAL"),
+                            status: String(localized: "Preparing your garden…")
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.top, 72)
+                    }
                 }
             } else if appState.isSignedIn {
                 MainTabView()

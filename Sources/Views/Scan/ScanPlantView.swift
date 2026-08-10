@@ -4,21 +4,15 @@ import UIKit
 struct ScanPlantView: View {
     @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var garden: GardenStore
-    @EnvironmentObject private var appState: AppState
     @Environment(\.appTheme) private var theme
 
     @State private var mode: ScanMode = .identify
     @State private var contextPlantId: UUID?
     @State private var showCamera = false
     @State private var showLibrary = false
-    @State private var showPlantPicker = false
-    @State private var isSavingLog = false
-    @State private var logMessage: String?
     @State private var flashMode: FlashMode = .auto
     @State private var libraryPreview: UIImage?
     @State private var now = Date()
-    @State private var pendingImageData: Data?
-    @State private var choosingPlantBeforeCapture = false
 
     private enum FlashMode: String, CaseIterable {
         case auto = "Auto"
@@ -64,9 +58,6 @@ struct ScanPlantView: View {
             VStack(spacing: 0) {
                 topBar
                 Spacer()
-                if mode != .identify {
-                    plantChooserChip
-                }
                 hintChip
                 bottomStrip
             }
@@ -80,31 +71,9 @@ struct ScanPlantView: View {
         }
         .sheet(isPresented: $showLibrary) {
             ImagePicker(sourceType: .photoLibrary) { image in
-                libraryPreview = image
                 handleCaptured(image)
             }
         }
-        .sheet(isPresented: $showPlantPicker) {
-            PlantPickerSheet(plants: garden.plants, title: "Choose a plant") { plant in
-                contextPlantId = plant.id
-                if choosingPlantBeforeCapture {
-                    choosingPlantBeforeCapture = false
-                    return
-                }
-                if let pending = pendingImageData {
-                    pendingImageData = nil
-                    resumeAfterPlantPicked(imageData: pending)
-                }
-            }
-        }
-        .alert("Scan logged", isPresented: Binding(
-            get: { logMessage != nil },
-            set: { if !$0 { logMessage = nil } }
-        ), actions: {
-            Button("OK") { logMessage = nil }
-        }, message: {
-            Text(logMessage ?? "")
-        })
         // Hide system nav only on the capture root — pushed ID/Health need their bars.
         .toolbar(coordinator.scanPath.isEmpty ? .hidden : .automatic, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
@@ -161,37 +130,6 @@ struct ScanPlantView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
-    }
-
-    private var plantChooserChip: some View {
-        Button {
-            choosingPlantBeforeCapture = true
-            showPlantPicker = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "leaf.circle")
-                Text(selectedPlantLabel)
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .font(theme.footnoteFont.weight(.semibold))
-            .foregroundStyle(theme.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(theme.surface.opacity(0.95))
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(theme.separator, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .padding(.bottom, 10)
-    }
-
-    private var selectedPlantLabel: String {
-        if let id = contextPlantId, let plant = garden.plants.first(where: { $0.id == id }) {
-            return plant.nickname
-        }
-        return mode == .health ? "Any plant (optional)" : "Choose plant"
     }
 
     private var hintChip: some View {
@@ -349,9 +287,12 @@ struct ScanPlantView: View {
 
     private var hint: String {
         switch mode {
-        case .identify: return "Fit one whole leaf inside the outline — you can add more angles on the next screen"
-        case .health: return "Take a photo or pick one from your library — linking a plant is optional"
-        case .log: return contextPlantId == nil ? "Choose a plant first, then log a new photo" : "Capture a fresh photo to log"
+        case .identify:
+            return "Take the first photo — you can add more angles before analysis"
+        case .health:
+            return "Take the first photo — you can add symptom views before analysis"
+        case .log:
+            return "Take the first photo — you can add more before saving"
         }
     }
 
@@ -364,46 +305,10 @@ struct ScanPlantView: View {
     private func handleCaptured(_ image: UIImage) {
         let aiData = ImageCompressor.prepareForAI(image)
         guard !aiData.isEmpty else { return }
-        switch mode {
-        case .identify:
-            coordinator.pushIdentification(CaptureContext(imageData: aiData, plantId: nil))
-        case .health:
-            // Plant link is optional — run the check immediately from camera or library.
-            coordinator.pushHealth(CaptureContext(imageData: aiData, plantId: contextPlantId))
-        case .log:
-            if contextPlantId == nil {
-                pendingImageData = aiData
-                choosingPlantBeforeCapture = false
-                showPlantPicker = true
-                return
-            }
-            Task { await logScan(imageData: aiData) }
-        }
-    }
-
-    private func resumeAfterPlantPicked(imageData: Data) {
-        switch mode {
-        case .identify:
-            break
-        case .health:
-            coordinator.pushHealth(CaptureContext(imageData: imageData, plantId: contextPlantId))
-        case .log:
-            Task { await logScan(imageData: imageData) }
-        }
-    }
-
-    private func logScan(imageData: Data) async {
-        guard let userId = appState.effectiveUserId, let plantId = contextPlantId else { return }
-        isSavingLog = true
-        defer { isSavingLog = false }
-        do {
-            let path = try await StorageService.upload(userId: userId, imageData: imageData, folder: "logs", isGuest: appState.isGuest)
-            _ = try await garden.addScan(NewScan(userId: userId, plantId: plantId, photoUrl: path, scanType: "log", confidence: nil, healthStatus: nil, healthScore: nil))
-            await garden.updatePlant(id: plantId, photoUrl: path)
-            logMessage = "Saved a new photo to this plant's journal."
-            coordinator.goToPlantDetail(plantId)
-        } catch {
-            logMessage = "Couldn't save the scan: \(error.localizedDescription)"
-        }
+        libraryPreview = image
+        coordinator.pushPreparation(
+            CaptureContext(imageData: aiData, plantId: contextPlantId),
+            mode: mode
+        )
     }
 }
