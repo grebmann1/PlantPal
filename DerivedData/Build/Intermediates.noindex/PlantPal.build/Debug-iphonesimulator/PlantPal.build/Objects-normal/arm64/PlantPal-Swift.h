@@ -344,6 +344,8 @@ extern "C" {
 #if __has_warning("-Watimport-in-framework-header")
 #pragma clang diagnostic ignored "-Watimport-in-framework-header"
 #endif
+@import MapKit;
+@import ObjectiveC;
 #endif
 
 #endif // defined(__OBJC__)
@@ -365,6 +367,14 @@ extern "C" {
 #endif
 
 #if defined(__OBJC__)
+
+@class MKLocalSearchCompleter;
+SWIFT_CLASS("_TtC8PlantPal15CitySearchModel")
+@interface CitySearchModel : NSObject <MKLocalSearchCompleterDelegate>
+- (nonnull instancetype)init OBJC_DESIGNATED_INITIALIZER;
+- (void)completerDidUpdateResults:(MKLocalSearchCompleter * _Nonnull)completer;
+- (void)completer:(MKLocalSearchCompleter * _Nonnull)completer didFailWithError:(NSError * _Nonnull)error;
+@end
 
 #endif // defined(__OBJC__)
 #if __has_attribute(external_source_symbol)
