@@ -6,8 +6,15 @@
 # Xcode / build
 DerivedData/
 .derivedData/
-*.xcuserdata
+build/
+.build/
+xcuserdata/
 *.xcuserstate
+*.xcresult
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.ipa
 
 # Supabase local linkage
 supabase/.temp/
