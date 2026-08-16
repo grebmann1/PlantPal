@@ -19,6 +19,7 @@ struct ScanPhotoPreparationView: View {
     @State private var showCamera = false
     @State private var showLibrary = false
     @State private var showPlantPicker = false
+    @State private var showDiscardConfirmation = false
     @State private var isSaving = false
     @State private var isNavigating = false
     @State private var hasAppeared = false
@@ -55,8 +56,11 @@ struct ScanPhotoPreparationView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    coordinator.clearCapture(for: captureId)
-                    dismiss()
+                    if photos.isEmpty {
+                        discardDraft()
+                    } else {
+                        showDiscardConfirmation = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
@@ -83,12 +87,30 @@ struct ScanPhotoPreparationView: View {
         } message: {
             Text("Add another view of the same plant.")
         }
+        .confirmationDialog(
+            "Discard these photos?",
+            isPresented: $showDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard photos", role: .destructive, action: discardDraft)
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("You will need to choose these photos again to continue this scan.")
+        }
         .fullScreenCover(isPresented: $showCamera) {
-            ImagePicker(sourceType: .camera) { appendPhoto($0) }
+            ImagePicker(
+                sourceType: .camera,
+                onImage: appendPhoto,
+                onDismiss: { showCamera = false }
+            )
                 .ignoresSafeArea()
         }
         .sheet(isPresented: $showLibrary) {
-            ImagePicker(sourceType: .photoLibrary) { appendPhoto($0) }
+            ImagePicker(
+                sourceType: .photoLibrary,
+                onImage: appendPhoto,
+                onDismiss: { showLibrary = false }
+            )
         }
         .sheet(isPresented: $showPlantPicker) {
             PlantPickerSheet(plants: garden.plants, title: "Choose a plant") { plant in
@@ -335,7 +357,10 @@ struct ScanPhotoPreparationView: View {
     private func appendPhoto(_ image: UIImage) {
         guard photos.count < maxPhotos else { return }
         let data = ImageCompressor.prepareForAI(image)
-        guard !data.isEmpty else { return }
+        guard !data.isEmpty else {
+            saveNotice = "That image couldn't be processed. Please choose another photo."
+            return
+        }
         photos.append(data)
         selectedPhotoIndex = photos.count - 1
         updateContext()
@@ -388,9 +413,10 @@ struct ScanPhotoPreparationView: View {
             return
         }
 
-        var paths: [String] = []
+        var savedScans: [PlantScan] = []
         var lastError: Error?
         for data in images {
+            var uploadedPath: String?
             do {
                 let path = try await StorageService.upload(
                     userId: userId,
@@ -398,7 +424,8 @@ struct ScanPhotoPreparationView: View {
                     folder: "logs",
                     isGuest: appState.isGuest
                 )
-                _ = try await garden.addScan(
+                uploadedPath = path
+                let scan = try await garden.addScan(
                     NewScan(
                         userId: userId,
                         plantId: plantId,
@@ -409,21 +436,39 @@ struct ScanPhotoPreparationView: View {
                         healthScore: nil
                     )
                 )
-                paths.append(path)
+                savedScans.append(scan)
             } catch {
+                if let uploadedPath {
+                    try? await StorageService.remove(path: uploadedPath, isGuest: appState.isGuest)
+                }
                 lastError = error
             }
         }
 
-        guard let coverPath = paths.first else {
+        guard savedScans.count == images.count, let coverPath = savedScans.first?.photoUrl else {
+            for scan in savedScans {
+                try? await garden.deleteScan(scan)
+            }
+            coordinator.updateCapture(for: captureId, CaptureContext(images: images, plantId: plantId))
             saveNotice = "Couldn't save the photos: \(lastError?.localizedDescription ?? "Unknown error")"
             return
         }
 
-        await garden.updatePlant(id: plantId, photoUrl: coverPath)
-        if paths.count < images.count {
-            garden.errorMessage = "Saved \(paths.count) of \(images.count) journal photos."
+        do {
+            try await garden.updatePlant(id: plantId, photoUrl: coverPath)
+        } catch {
+            for scan in savedScans {
+                try? await garden.deleteScan(scan)
+            }
+            coordinator.updateCapture(for: captureId, CaptureContext(images: images, plantId: plantId))
+            saveNotice = "Couldn't save the photos: \(error.localizedDescription)"
+            return
         }
         coordinator.goToPlantDetail(plantId)
+    }
+
+    private func discardDraft() {
+        coordinator.clearCapture(for: captureId)
+        dismiss()
     }
 }

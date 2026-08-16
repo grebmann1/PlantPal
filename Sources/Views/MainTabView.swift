@@ -6,6 +6,9 @@ struct MainTabView: View {
     @StateObject private var garden = GardenStore()
     @StateObject private var catalog = SpeciesCatalogStore()
     @StateObject private var speciesCollections = SpeciesCollectionStore()
+    @State private var showGuestImport = false
+    @State private var isImportingGuestData = false
+    @State private var guestImportError: String?
     @Environment(\.appTheme) private var theme
 
     @AppStorage("pp.wateringReminders") private var wateringReminders = true
@@ -112,6 +115,13 @@ struct MainTabView: View {
                 await rescheduleNotifications()
             }
         }
+        .onChange(of: appState.pendingGuestImportUserId) { _, pending in
+            showGuestImport = pending != nil
+        }
+        .task(id: appState.pendingGuestImportUserId) {
+            showGuestImport = appState.pendingGuestImportUserId != nil
+        }
+        .sheet(isPresented: $showGuestImport) { guestImportSheet }
         .onChange(of: garden.plants) { _, _ in
             Task { await rescheduleNotifications() }
         }
@@ -126,6 +136,16 @@ struct MainTabView: View {
             CareGuideView(plantId: id)
         case .speciesDetail(let id):
             SpeciesDetailView(speciesId: id)
+        case .guideArticle(let id):
+            if let guide = PlantGuide.guide(id: id) {
+                GuideArticleView(guide: guide)
+            } else {
+                ContentUnavailableView(
+                    "Guide unavailable",
+                    systemImage: "book.closed",
+                    description: Text("This field note could not be found.")
+                )
+            }
         }
     }
 
@@ -181,5 +201,64 @@ struct MainTabView: View {
             reminderTimeSeconds: reminderTimeRaw,
             plants: garden.plants
         )
+    }
+
+    private var guestImportSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Bring over your guest garden?")
+                    .font(theme.title2Font)
+                    .foregroundStyle(theme.primary)
+                Text("Your plants, scans, reminders, and care guides are still stored on this device. Move them into this account so they can sync across devices.")
+                    .font(theme.subheadFont)
+                    .foregroundStyle(theme.textSecondary)
+                if let guestImportError {
+                    Text(guestImportError)
+                        .font(theme.footnoteFont)
+                        .foregroundStyle(theme.error)
+                }
+                Button {
+                    Task { await importGuestGarden() }
+                } label: {
+                    if isImportingGuestData {
+                        ProgressView().tint(theme.onPrimary)
+                    } else {
+                        Text("Move guest garden to my account")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(theme.primary)
+                .disabled(isImportingGuestData)
+                Button("Keep it on this device") {
+                    appState.keepGuestDataOnDevice()
+                    showGuestImport = false
+                }
+                .disabled(isImportingGuestData)
+                Spacer()
+            }
+            .padding(20)
+            .background(theme.background)
+            .navigationTitle("Guest garden")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(true)
+    }
+
+    private func importGuestGarden() async {
+        guard let guestUserId = appState.pendingGuestImportUserId,
+              let userId = appState.userId else { return }
+        isImportingGuestData = true
+        defer { isImportingGuestData = false }
+        do {
+            await garden.loadAll(userId: userId, isGuest: false)
+            try await garden.importGuestData(from: guestUserId, to: userId)
+            try await speciesCollections.importGuestActivities(from: guestUserId, to: userId)
+            appState.completeGuestImport()
+            await garden.loadAll(userId: userId)
+            showGuestImport = false
+        } catch {
+            guestImportError = "Couldn't move your guest garden: \(error.localizedDescription)"
+        }
     }
 }

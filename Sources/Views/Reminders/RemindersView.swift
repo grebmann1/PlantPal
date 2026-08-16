@@ -155,7 +155,13 @@ struct RemindersView: View {
         }
         .sheet(item: $rescheduleTarget) { reminder in
             RescheduleReminderSheet(date: $rescheduleDate) {
-                Task { await garden.reschedule(reminder, to: rescheduleDate) }
+                Task {
+                    do {
+                        try await garden.reschedule(reminder, to: rescheduleDate)
+                    } catch {
+                        garden.errorMessage = error.localizedDescription
+                    }
+                }
                 rescheduleTarget = nil
             } onCancel: {
                 rescheduleTarget = nil
@@ -435,7 +441,7 @@ struct RemindersView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         actionChip(
-                            title: reminder.type == "feeding" ? "Mark fed" : "Water now",
+                            title: completionLabel(for: reminder),
                             filled: true
                         ) {
                             Task { await garden.markWatered(reminder) }
@@ -540,7 +546,23 @@ struct RemindersView: View {
 
     private func doneSubline(_ reminder: Reminder) -> String {
         let f = DateFormatter(); f.dateFormat = "HH:mm"
-        return "Watered \(f.string(from: due(reminder)))"
+        return "\(completedVerb(for: reminder)) \(f.string(from: due(reminder)))"
+    }
+
+    private func completionLabel(for reminder: Reminder) -> String {
+        switch reminder.type {
+        case "feeding": return "Mark fed"
+        case "custom": return "Mark misted"
+        default: return "Water now"
+        }
+    }
+
+    private func completedVerb(for reminder: Reminder) -> String {
+        switch reminder.type {
+        case "feeding": return "Fed"
+        case "custom": return "Misted"
+        default: return "Watered"
+        }
     }
 
     private func due(_ reminder: Reminder) -> Date {

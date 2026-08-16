@@ -24,7 +24,8 @@ enum NotificationService {
         wateringEnabled: Bool,
         scanNudgesEnabled: Bool,
         reminderTimeSeconds: Double,
-        plants: [Plant]
+        plants: [Plant],
+        requestAuthorization: Bool = false
     ) async {
         let center = UNUserNotificationCenter.current()
         await center.removePendingNotificationRequests(
@@ -32,7 +33,15 @@ enum NotificationService {
         )
 
         guard wateringEnabled || scanNudgesEnabled else { return }
-        let allowed = await requestAuthorizationIfNeeded()
+        let allowed: Bool
+        if requestAuthorization {
+            allowed = await requestAuthorizationIfNeeded()
+        } else {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            allowed = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+                || settings.authorizationStatus == .ephemeral
+        }
         guard allowed else { return }
 
         if wateringEnabled {

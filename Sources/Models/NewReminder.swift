@@ -1,6 +1,7 @@
 import Foundation
 
 struct NewReminder: Codable {
+    var id: UUID? = nil
     var userId: UUID
     var plantId: UUID
     var type: String
@@ -8,7 +9,7 @@ struct NewReminder: Codable {
     var amountLabel: String?
 
     enum CodingKeys: String, CodingKey {
-        case type
+        case id, type
         case userId = "user_id"
         case plantId = "plant_id"
         case dueAt = "due_at"

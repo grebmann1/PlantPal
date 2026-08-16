@@ -207,8 +207,8 @@ struct SettingsView: View {
             ActivityShareSheet(activityItems: [shareText])
         }
         .onAppear { Task { await rescheduleNotifications() } }
-        .onChange(of: wateringReminders) { _, _ in Task { await rescheduleNotifications() } }
-        .onChange(of: scanNudges) { _, _ in Task { await rescheduleNotifications() } }
+        .onChange(of: wateringReminders) { _, enabled in Task { await rescheduleNotifications(requestAuthorization: enabled) } }
+        .onChange(of: scanNudges) { _, enabled in Task { await rescheduleNotifications(requestAuthorization: enabled) } }
         .onChange(of: reminderTimeRaw) { _, _ in Task { await rescheduleNotifications() } }
     }
 
@@ -514,12 +514,13 @@ struct SettingsView: View {
         return "Exported \(garden.plants.count) specimens:\n" + (lines.isEmpty ? "No plants yet." : lines.joined(separator: "\n"))
     }
 
-    private func rescheduleNotifications() async {
+    private func rescheduleNotifications(requestAuthorization: Bool = false) async {
         await NotificationService.reschedule(
             wateringEnabled: wateringReminders,
             scanNudgesEnabled: scanNudges,
             reminderTimeSeconds: reminderTimeRaw,
-            plants: garden.plants
+            plants: garden.plants,
+            requestAuthorization: requestAuthorization
         )
     }
 }

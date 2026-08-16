@@ -5,20 +5,27 @@ import Supabase
 final class AppState: ObservableObject {
     @Published var session: Session?
     @Published private(set) var isGuest: Bool
+    @Published private(set) var pendingGuestImportUserId: UUID?
     @Published var isReady = false
 
     private var authTask: Task<Void, Never>?
 
     init() {
         isGuest = UserDefaults.standard.bool(forKey: "pp.isGuest")
+        pendingGuestImportUserId = nil
         isReady = isGuest
         authTask = Task { [weak self] in
 
             guard let self else { return }
             for await change in SupabaseManager.client.auth.authStateChanges {
                 self.session = change.session
-                if change.session != nil {
+                if let userId = change.session?.user.id, self.isGuest {
+                    self.startGuestImport(for: userId)
                     self.clearGuestMode()
+                } else if let userId = change.session?.user.id {
+                    self.pendingGuestImportUserId = GuestImportStore.load(for: userId)?.guestUserId
+                } else {
+                    self.pendingGuestImportUserId = nil
                 }
                 self.isReady = true
             }
@@ -62,11 +69,65 @@ final class AppState: ObservableObject {
         isGuest = false
     }
 
+    func completeGuestImport() {
+        guard let pendingGuestImportUserId else { return }
+        LocalGardenStore.clearAll(userId: pendingGuestImportUserId)
+        LocalSpeciesCollectionStore.clear(userId: pendingGuestImportUserId)
+        try? LocalPhotoStore.removeAll(userId: pendingGuestImportUserId)
+        GuestImportStore.clear()
+        self.pendingGuestImportUserId = nil
+        clearGuestMode()
+    }
+
+    func keepGuestDataOnDevice() {
+        GuestImportStore.clear()
+        pendingGuestImportUserId = nil
+        clearGuestMode()
+    }
+
+    private func startGuestImport(for userId: UUID) {
+        let pending = GuestImport(guestUserId: guestUserId, userId: userId)
+        GuestImportStore.save(pending)
+        pendingGuestImportUserId = pending.guestUserId
+    }
+
     func signOut() async {
         if session != nil {
-            try? await SupabaseManager.client.auth.signOut()
+            do {
+                try await SupabaseManager.client.auth.signOut()
+            } catch {
+                return
+            }
         }
         UserDefaults.standard.removeObject(forKey: "pp.isGuest")
         isGuest = false
+    }
+}
+
+struct GuestImport: Codable, Equatable {
+    var guestUserId: UUID
+    var userId: UUID
+}
+
+enum GuestImportStore {
+    private static let key = "pp.pendingGuestImport"
+
+    static func load() -> GuestImport? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(GuestImport.self, from: data)
+    }
+
+    static func load(for userId: UUID) -> GuestImport? {
+        guard let pending = load(), pending.userId == userId else { return nil }
+        return pending
+    }
+
+    static func save(_ pending: GuestImport) {
+        guard let data = try? JSONEncoder().encode(pending) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }

@@ -91,15 +91,19 @@ struct PlantExpertChatView: View {
                 Text("Attach a plant photo so the expert can see what you see.")
             }
             .fullScreenCover(isPresented: $showCameraPicker) {
-                ImagePicker(sourceType: .camera) { image in
-                    attach(image)
-                }
+                ImagePicker(
+                    sourceType: .camera,
+                    onImage: attach,
+                    onDismiss: { showCameraPicker = false }
+                )
                 .ignoresSafeArea()
             }
             .sheet(isPresented: $showLibraryPicker) {
-                ImagePicker(sourceType: .photoLibrary) { image in
-                    attach(image)
-                }
+                ImagePicker(
+                    sourceType: .photoLibrary,
+                    onImage: attach,
+                    onDismiss: { showLibraryPicker = false }
+                )
             }
         }
     }

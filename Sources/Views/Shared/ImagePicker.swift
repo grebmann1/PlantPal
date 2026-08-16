@@ -7,6 +7,7 @@ struct ImagePicker: UIViewControllerRepresentable {
     var sourceType: UIImagePickerController.SourceType
     var flashMode: UIImagePickerController.CameraFlashMode = .auto
     var onImage: (UIImage) -> Void
+    var onDismiss: () -> Void = {}
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -33,13 +34,15 @@ struct ImagePicker: UIViewControllerRepresentable {
         init(_ parent: ImagePicker) { self.parent = parent }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            picker.dismiss(animated: true)
             if let image = info[.originalImage] as? UIImage {
                 parent.onImage(image)
             }
+            parent.onDismiss()
+            picker.dismiss(animated: true)
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
             picker.dismiss(animated: true)
         }
     }

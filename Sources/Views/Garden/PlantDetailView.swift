@@ -135,15 +135,19 @@ struct PlantDetailView: View {
             Text("Only you can see photos added to this plant.")
         }
         .fullScreenCover(isPresented: $showCameraPicker) {
-            ImagePicker(sourceType: .camera) { image in
-                Task { await savePrivatePhoto(image) }
-            }
-            .ignoresSafeArea()
+            ImagePicker(
+                sourceType: .camera,
+                onImage: { image in Task { await savePrivatePhoto(image) } },
+                onDismiss: { showCameraPicker = false }
+            )
+                .ignoresSafeArea()
         }
         .sheet(isPresented: $showLibraryPicker) {
-            ImagePicker(sourceType: .photoLibrary) { image in
-                Task { await savePrivatePhoto(image) }
-            }
+            ImagePicker(
+                sourceType: .photoLibrary,
+                onImage: { image in Task { await savePrivatePhoto(image) } },
+                onDismiss: { showLibraryPicker = false }
+            )
         }
         .alert("Couldn't add photo", isPresented: Binding(
             get: { photoError != nil },
@@ -157,13 +161,22 @@ struct PlantDetailView: View {
             if let plant {
                 EditPlantSheet(plant: plant) { nickname, interval, amount, placement in
                     Task {
-                        await garden.updatePlant(
-                            id: plant.id,
-                            nickname: nickname,
-                            wateringIntervalDays: interval,
-                            wateringAmountMl: amount,
-                            placement: placement
-                        )
+                        do {
+                            try await garden.updatePlant(
+                                id: plant.id,
+                                nickname: nickname,
+                                placement: placement
+                            )
+                            guard let userId = appState.effectiveUserId else { return }
+                            try await garden.updateWateringSchedule(
+                                plantId: plant.id,
+                                userId: userId,
+                                interval: interval,
+                                amount: amount
+                            )
+                        } catch {
+                            garden.errorMessage = error.localizedDescription
+                        }
                     }
                 }
             }
@@ -400,8 +413,7 @@ struct PlantDetailView: View {
                 .lineSpacing(4)
 
             Button {
-                coordinator.selectedTab = .garden
-                coordinator.gardenPath.append(AppRoute.careGuide(plant.id))
+                coordinator.goToCareGuide(plant.id, from: coordinator.selectedTab)
             } label: {
                 Text("Open full care guide")
                     .font(theme.subheadFont)
@@ -618,6 +630,7 @@ struct PlantDetailView: View {
         }
         isSavingPhoto = true
         defer { isSavingPhoto = false }
+        var uploadedPath: String?
         do {
             let path = try await StorageService.upload(
                 userId: userId,
@@ -625,6 +638,7 @@ struct PlantDetailView: View {
                 folder: "logs",
                 isGuest: appState.isGuest
             )
+            uploadedPath = path
             _ = try await garden.addScan(
                 NewScan(
                     userId: userId,
@@ -636,9 +650,12 @@ struct PlantDetailView: View {
                     healthScore: nil
                 )
             )
-            await garden.updatePlant(id: plantId, photoUrl: path)
+            try await garden.updatePlant(id: plantId, photoUrl: path)
             await loadScans()
         } catch {
+            if let uploadedPath {
+                try? await StorageService.remove(path: uploadedPath, isGuest: appState.isGuest)
+            }
             photoError = error.localizedDescription
         }
     }

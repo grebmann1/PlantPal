@@ -10,9 +10,12 @@ struct CareGuideView: View {
     @State private var guide: CareGuide?
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var actionError: String?
     @State private var expandedProblem: String?
     @State private var savedOffline = false
     @State private var scheduleAdded = false
+    @State private var isAddingSchedule = false
+    @State private var isSavingOffline = false
 
     private var plant: Plant? { garden.plants.first(where: { $0.id == plantId }) }
 
@@ -43,6 +46,10 @@ struct CareGuideView: View {
                     actions
                         .padding(.horizontal, 20)
                         .padding(.vertical, 28)
+                    if let actionError {
+                        actionErrorBanner(actionError)
+                            .padding(.horizontal, 20)
+                    }
                 }
             }
             .padding(.bottom, 24)
@@ -288,26 +295,36 @@ struct CareGuideView: View {
             Button {
                 Task { await addToSchedule() }
             } label: {
-                Text(scheduleAdded ? "Added to schedule" : "Add to Watering Schedule")
-                    .font(theme.headlineFont)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                Group {
+                    if isAddingSchedule {
+                        ProgressView().tint(theme.onPrimary)
+                    } else {
+                        Text(scheduleAdded ? "Watering schedule active" : "Add to Watering Schedule")
+                            .font(theme.headlineFont)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
             .buttonStyle(.borderedProminent)
             .tint(theme.primary)
             .foregroundStyle(theme.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg))
-            .disabled(scheduleAdded)
+            .disabled(scheduleAdded || isAddingSchedule)
 
             Button {
                 Task { await saveGuideOffline() }
             } label: {
-                Text(savedOffline ? "Saved for offline use" : "Save guide offline")
-                    .font(theme.subheadFont)
-                    .underline()
-                    .foregroundStyle(theme.textSecondary)
+                if isSavingOffline {
+                    ProgressView().tint(theme.primary)
+                } else {
+                    Text(savedOffline ? "Saved for offline use" : "Save guide offline")
+                        .font(theme.subheadFont)
+                        .underline()
+                        .foregroundStyle(theme.textSecondary)
+                }
             }
-            .disabled(guide == nil || savedOffline)
+            .disabled(guide == nil || savedOffline || isSavingOffline)
         }
     }
 
@@ -323,6 +340,10 @@ struct CareGuideView: View {
             // 1) Per-user / on-device cache
             if let cached = try await garden.fetchCareGuide(userId: userId, speciesLatinName: species) {
                 guide = await SpeciesI18nService.localizeCareGuide(cached, speciesLatinName: species)
+                savedOffline = LocalGardenStore.loadCareGuides(userId: userId).contains { $0.speciesLatinName == species }
+                scheduleAdded = garden.reminders.contains {
+                    $0.plantId == plant.id && $0.type == "watering" && !$0.isCompleted
+                }
                 isLoading = false
                 return
             }
@@ -344,6 +365,9 @@ struct CareGuideView: View {
                 )
                 let saved = try await garden.saveCareGuide(newGuide)
                 guide = await SpeciesI18nService.localizeCareGuide(saved, speciesLatinName: species)
+                scheduleAdded = garden.reminders.contains {
+                    $0.plantId == plant.id && $0.type == "watering" && !$0.isCompleted
+                }
                 isLoading = false
                 return
             }
@@ -377,6 +401,9 @@ struct CareGuideView: View {
             )
             let saved = try await garden.saveCareGuide(newGuide)
             guide = await SpeciesI18nService.localizeCareGuide(saved, speciesLatinName: species)
+            scheduleAdded = garden.reminders.contains {
+                $0.plantId == plant.id && $0.type == "watering" && !$0.isCompleted
+            }
         } catch {
             errorMessage = AIProxyError.from(error).localizedDescription
         }
@@ -384,55 +411,45 @@ struct CareGuideView: View {
     }
 
     private func saveGuideOffline() async {
-        guard let userId = appState.effectiveUserId, let plant, let species = plant.speciesLatinName, let guide else {
-            errorMessage = String(localized: "Nothing to save yet.")
+        guard let userId = appState.effectiveUserId, let plant, let guide else {
+            actionError = String(localized: "Nothing to save yet.")
             return
         }
-        do {
-            let payload = NewCareGuide(
-                userId: userId,
-                plantId: plant.id,
-                speciesLatinName: species,
-                lightRequirement: guide.lightRequirement,
-                wateringFrequency: guide.wateringFrequency,
-                wateringAmount: guide.wateringAmount,
-                soilMix: guide.soilMix,
-                temperatureRange: guide.temperatureRange,
-                humidityRange: guide.humidityRange,
-                difficultyLevel: guide.difficultyLevel,
-                commonProblems: guide.commonProblems
-            )
-            self.guide = try await garden.saveCareGuide(payload)
-            // Guests already persist via LocalGardenStore inside saveCareGuide.
-            // Signed-in users also mirror locally so the guide is available offline.
-            if !appState.isGuest {
-                var local = LocalGardenStore.loadCareGuides()
-                local.removeAll { $0.speciesLatinName == species }
-                local.append(self.guide!)
-                LocalGardenStore.saveCareGuides(local)
-            }
-            savedOffline = true
-        } catch {
-            errorMessage = String(localized: "Couldn't save guide offline: \(error.localizedDescription)")
-        }
+        isSavingOffline = true
+        defer { isSavingOffline = false }
+        LocalGardenStore.saveCareGuide(guide, userId: userId)
+        savedOffline = true
+        actionError = nil
     }
 
     private func addToSchedule() async {
         guard let userId = appState.effectiveUserId, let plant else { return }
+        guard !isAddingSchedule else { return }
+        isAddingSchedule = true
+        defer { isAddingSchedule = false }
         let interval = plant.wateringIntervalDays ?? 7
         let due = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
-        let reminder = NewReminder(
-            userId: userId,
-            plantId: plant.id,
-            type: "watering",
-            dueAt: ISO8601DateFormatter().string(from: due),
-            amountLabel: guide?.wateringAmount
-        )
         do {
-            _ = try await garden.addReminder(reminder)
+            _ = try await garden.ensureWateringReminder(userId: userId, plant: plant, due: due)
             scheduleAdded = true
+            actionError = nil
         } catch {
-            errorMessage = String(localized: "Couldn't add watering schedule: \(error.localizedDescription)")
+            actionError = String(localized: "Couldn't add watering schedule: \(error.localizedDescription)")
         }
+    }
+
+    private func actionErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(message)
+                .font(theme.footnoteFont)
+            Spacer()
+            Button("Dismiss") { actionError = nil }
+                .font(theme.footnoteFont.weight(.semibold))
+        }
+        .foregroundStyle(theme.error)
+        .padding(12)
+        .background(theme.error.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.md))
     }
 }

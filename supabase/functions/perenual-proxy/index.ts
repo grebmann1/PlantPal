@@ -195,7 +195,10 @@ async function handleDetails(
     .eq("id", id)
     .maybeSingle();
 
-  if (existing?.details_fetched) {
+  if (
+    existing?.details_fetched &&
+    hasUsableDetails(existing as SpeciesRow)
+  ) {
     return { cached: true, data: toClientSpecies(existing as SpeciesRow) };
   }
 
@@ -238,7 +241,10 @@ async function handleLookup(
     .limit(1)
     .maybeSingle();
 
-  if (existing?.details_fetched) {
+  if (
+    existing?.details_fetched &&
+    hasUsableDetails(existing as SpeciesRow)
+  ) {
     return { cached: true, data: toClientSpecies(existing as SpeciesRow) };
   }
 
@@ -364,6 +370,27 @@ async function upsertSpecies(
       Boolean((existing as SpeciesRow | null)?.details_fetched),
     updated_at: new Date().toISOString(),
   };
+
+  // List responses are intentionally sparse. Once full details have been
+  // fetched, a later search must not replace those fields with nulls/empties.
+  if (!detailsFetched && (existing as SpeciesRow | null)?.details_fetched) {
+    const detailed = existing as SpeciesRow;
+    merged.other_names = detailed.other_names?.length
+      ? detailed.other_names
+      : row.other_names;
+    merged.family = detailed.family ?? row.family;
+    merged.genus = detailed.genus ?? row.genus;
+    merged.cycle = detailed.cycle ?? row.cycle;
+    merged.watering = detailed.watering ?? row.watering;
+    merged.sunlight = detailed.sunlight?.length
+      ? detailed.sunlight
+      : row.sunlight;
+    merged.indoor = detailed.indoor ?? row.indoor;
+    merged.description = detailed.description ?? row.description;
+    merged.care_level = detailed.care_level ?? row.care_level;
+    merged.growth_rate = detailed.growth_rate ?? row.growth_rate;
+    merged.raw = detailed.raw ?? row.raw;
+  }
 
   // Keep primary columns aligned with arrays.
   merged.image_url = merged.image_urls[0] ?? merged.image_url ?? null;
@@ -635,6 +662,14 @@ function stringArray(value: unknown): string[] {
     return single ? [single] : [];
   }
   return value.map(str).filter((v): v is string => Boolean(v));
+}
+
+function hasUsableDetails(row: SpeciesRow): boolean {
+  return Boolean(
+    row.description ||
+      row.care_level ||
+      row.growth_rate
+  );
 }
 
 function pickImageUrl(image: Record<string, unknown> | null): string | null {

@@ -17,6 +17,7 @@ struct HealthAssessmentView: View {
     @State private var attachedPlantId: UUID?
     @State private var showPlantPicker = false
     @State private var saveNotice: String?
+    @State private var assessmentTask: Task<Void, Never>?
 
     private var plant: Plant? {
         guard let id = attachedPlantId else { return nil }
@@ -66,6 +67,7 @@ struct HealthAssessmentView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
+                    guard !isSaving else { return }
                     dismiss()
                 } label: {
                     HStack(spacing: 4) {
@@ -87,8 +89,9 @@ struct HealthAssessmentView: View {
             if attachedPlantId == nil {
                 attachedPlantId = context.plantId
             }
-            await runAssessment()
+            startAssessment()
         }
+        .onDisappear { assessmentTask?.cancel() }
         .sheet(isPresented: $showPlantPicker) {
             PlantPickerSheet(plants: garden.plants, title: "Attach to a plant") { plant in
                 attachedPlantId = plant.id
@@ -118,9 +121,10 @@ struct HealthAssessmentView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
-                Button("Try again") { Task { await runAssessment() } }
+                Button("Try again") { startAssessment() }
                     .buttonStyle(.borderedProminent)
                     .tint(theme.primary)
+                    .disabled(isLoading)
 
                 if showDemoFallback {
                     Button("Use Sample Assessment") {
@@ -507,6 +511,8 @@ struct HealthAssessmentView: View {
                 imageData: context.images,
                 speciesLatinName: plant?.speciesLatinName
             )
+        } catch is CancellationError {
+            return
         } catch {
             let friendly = AIProxyError.from(error)
             errorMessage = friendly.localizedDescription
@@ -515,13 +521,20 @@ struct HealthAssessmentView: View {
         isLoading = false
     }
 
+    private func startAssessment() {
+        guard !isLoading || assessmentTask == nil else { return }
+        assessmentTask?.cancel()
+        assessmentTask = Task { await runAssessment() }
+    }
+
     private func save(_ result: HealthAIResult) async {
         guard let userId = appState.effectiveUserId, let plantId = attachedPlantId else { return }
         isSaving = true
         defer { isSaving = false }
-        var paths: [String] = []
+        var savedScans: [PlantScan] = []
         var lastError: Error?
         for imageData in context.images {
+            var uploadedPath: String?
             do {
                 let path = try await StorageService.upload(
                     userId: userId,
@@ -529,8 +542,9 @@ struct HealthAssessmentView: View {
                     folder: "health",
                     isGuest: appState.isGuest
                 )
-                let isPrimary = paths.isEmpty
-                _ = try await garden.addScan(
+                uploadedPath = path
+                let isPrimary = savedScans.isEmpty
+                let scan = try await garden.addScan(
                     NewScan(
                         userId: userId,
                         plantId: plantId,
@@ -542,28 +556,37 @@ struct HealthAssessmentView: View {
                         aiResultJson: isPrimary ? .health(result) : nil
                     )
                 )
-                paths.append(path)
+                savedScans.append(scan)
             } catch {
+                if let uploadedPath {
+                    try? await StorageService.remove(path: uploadedPath, isGuest: appState.isGuest)
+                }
                 lastError = error
             }
         }
 
-        guard !paths.isEmpty else {
+        guard savedScans.count == context.images.count, let coverPath = savedScans.first?.photoUrl else {
+            for scan in savedScans {
+                try? await garden.deleteScan(scan)
+            }
             saveNotice = String(
                 localized: "Couldn't save this assessment: \(lastError?.localizedDescription ?? "Unknown error")"
             )
             return
         }
 
-        await garden.updatePlant(
-            id: plantId,
-            healthScore: result.healthScore,
-            photoUrl: paths.first
-        )
-        if paths.count < context.images.count {
-            garden.errorMessage = String(
-                localized: "Saved \(paths.count) of \(context.images.count) assessment photos."
+        do {
+            try await garden.updatePlant(
+                id: plantId,
+                healthScore: result.healthScore,
+                photoUrl: coverPath
             )
+        } catch {
+            for scan in savedScans {
+                try? await garden.deleteScan(scan)
+            }
+            saveNotice = String(localized: "Couldn't save this assessment: \(error.localizedDescription)")
+            return
         }
         coordinator.goToPlantDetail(plantId)
     }

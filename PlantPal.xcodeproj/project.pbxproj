@@ -18,6 +18,7 @@
 		1C2021625D49FE126E17FC01 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE475C557469E0D08307C52 /* AppTheme.swift */; };
 		2095464612E2C5B014385B4B /* SpeciesCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF8625CC9905BEC7F2215D7A /* SpeciesCatalogStore.swift */; };
 		23142FDEF9E2BEBFBC421FC6 /* ScanPlantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103BCCC4391C1DA1F09C07D6 /* ScanPlantView.swift */; };
+		2EF84728F42044494B8F7BF7 /* GuideLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4EC2F9E050EB188EB7FF115 /* GuideLibraryView.swift */; };
 		368AF7686CCB049DF3F86D9D /* IdentificationAIResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5D83CAE93533E73842F957 /* IdentificationAIResult.swift */; };
 		3D207F33B90DEDEBE2FF0DA0 /* CareGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE0CDA13E8E3BBC811BA7CE /* CareGuideView.swift */; };
 		3FFEDB08C0160AC5EF5BB471 /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F999105165989C2A9704F3 /* RemindersView.swift */; };
@@ -188,6 +189,7 @@
 		BFC035290785B91082CEC643 /* RemotePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePhoto.swift; sourceTree = "<group>"; };
 		C120C7818169EA9093FF2110 /* PlantExpertAIResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlantExpertAIResult.swift; sourceTree = "<group>"; };
 		CF8E147A584127C7B1CDC492 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		D4EC2F9E050EB188EB7FF115 /* GuideLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideLibraryView.swift; sourceTree = "<group>"; };
 		D6A8C97C96752AA31891FA70 /* ImageCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressor.swift; sourceTree = "<group>"; };
 		D6FCFE0A735D9D030C3689A0 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		D978BBE3F7F1B4DE1EEF5AD6 /* FieldJournalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldJournalComponents.swift; sourceTree = "<group>"; };
@@ -298,6 +300,7 @@
 				07EBBA8B336183F5C4960174 /* RootView.swift */,
 				3A9D77716506D21432198333 /* Catalog */,
 				C6B9580421D02C82A0B17E9F /* Garden */,
+				CE26578327F2DD793D81473E /* Guide */,
 				6195C3529370E12925C89C35 /* Onboarding */,
 				523A8C717E08E500D85C9B5E /* Reminders */,
 				FDE709C5A51E963530230C9A /* Scan */,
@@ -392,6 +395,14 @@
 				3F1AA5F504DF17F2E987F160 /* Views */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		CE26578327F2DD793D81473E /* Guide */ = {
+			isa = PBXGroup;
+			children = (
+				D4EC2F9E050EB188EB7FF115 /* GuideLibraryView.swift */,
+			);
+			path = Guide;
 			sourceTree = "<group>";
 		};
 		CE28411323E956308EF93615 /* Services */ = {
@@ -603,6 +614,7 @@
 				56799A21194838390251E7C8 /* DemoContent.swift in Sources */,
 				458DF646F822B0023B16290E /* FieldJournalComponents.swift in Sources */,
 				F62DF31C144D6E2E0345D03E /* GardenStore.swift in Sources */,
+				2EF84728F42044494B8F7BF7 /* GuideLibraryView.swift in Sources */,
 				6725BF4EAEC21A547AC2D701 /* HealthAIResult.swift in Sources */,
 				B134E737EE55801FF0E3622A /* HealthAssessmentView.swift in Sources */,
 				14D4A43BB29FD4329849DBD8 /* HealthIssue.swift in Sources */,
