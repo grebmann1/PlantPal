@@ -65,6 +65,7 @@ struct ScanPlantView: View {
         .onAppear(perform: startScanSession)
         .onChange(of: coordinator.scanSessionID) { _, _ in startScanSession() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
+        .accessibilityIdentifier("scan-screen")
         .fullScreenCover(isPresented: $showCamera) {
             ImagePicker(
                 sourceType: .camera,

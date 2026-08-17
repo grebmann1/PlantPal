@@ -11,6 +11,12 @@ final class AppState: ObservableObject {
     private var authTask: Task<Void, Never>?
 
     init() {
+        if DemoContent.isScreenshotMode {
+            UserDefaults.standard.set(true, forKey: "pp.isGuest")
+            LocalGardenStore.clearAll(userId: DemoContent.screenshotGuestUserId)
+            LocalSpeciesCollectionStore.clear(userId: DemoContent.screenshotGuestUserId)
+            try? LocalPhotoStore.removeAll(userId: DemoContent.screenshotGuestUserId)
+        }
         isGuest = UserDefaults.standard.bool(forKey: "pp.isGuest")
         pendingGuestImportUserId = nil
         isReady = isGuest
@@ -44,6 +50,9 @@ final class AppState: ObservableObject {
     /// on-device (no Supabase auth token exists for guests, so cloud writes would
     /// fail RLS checks). Signed-in users always use their real Supabase user id.
     var guestUserId: UUID {
+        if DemoContent.isScreenshotMode {
+            return DemoContent.screenshotGuestUserId
+        }
         if let stored = UserDefaults.standard.string(forKey: "pp.guestUserId"), let uuid = UUID(uuidString: stored) {
             return uuid
         }
