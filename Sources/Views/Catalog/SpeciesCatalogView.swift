@@ -118,6 +118,7 @@ struct SpeciesCatalogView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("discover-\(section.rawValue.lowercased())")
                 .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
             }
         }

@@ -74,6 +74,7 @@ struct MyGardenView: View {
                                     PlantTileView(plant: plant, tall: index.isMultiple(of: 2))
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("plant-detail-\(plant.nickname)")
                                 .padding(.top, index.isMultiple(of: 2) ? 0 : 26)
                             }
                         }
@@ -89,6 +90,7 @@ struct MyGardenView: View {
             }
         }
         .journalPaperBackground(showMarginRail: true)
+        .accessibilityIdentifier("garden-screen")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { EmptyView() }
