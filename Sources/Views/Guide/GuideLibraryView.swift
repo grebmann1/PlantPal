@@ -201,6 +201,7 @@ struct GuideLibraryView: View {
             .padding(.bottom, theme.spacing.s10)
         }
         .journalPaperBackground(showMarginRail: true, marginNote: "Plant knowledge")
+        .accessibilityIdentifier("guide-library-screen")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { EmptyView() }
@@ -327,6 +328,7 @@ struct GuideLibraryView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("guide-\(guide.id)")
             .accessibilityHint("Opens the featured guide")
 
             bookmarkButton(for: guide)
@@ -374,6 +376,7 @@ struct GuideLibraryView: View {
             .appElevation(theme.elevation.e1)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("guide-\(guide.id)")
     }
 
     private var guideResults: some View {
@@ -504,6 +507,7 @@ struct GuideArticleView: View {
             .padding(.bottom, theme.spacing.s12)
         }
         .journalPaperBackground(showMarginRail: true)
+        .accessibilityIdentifier("guide-article-screen")
         .navigationTitle("Guide")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

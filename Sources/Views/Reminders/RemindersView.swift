@@ -130,6 +130,7 @@ struct RemindersView: View {
             }
         }
         .background(theme.background.ignoresSafeArea())
+        .accessibilityIdentifier("reminders-screen")
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
