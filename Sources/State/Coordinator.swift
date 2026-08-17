@@ -47,6 +47,7 @@ enum AppRoute: Hashable {
     case plantDetail(UUID)
     case careGuide(UUID)
     case speciesDetail(Int)
+    case guideArticle(String)
 }
 
 /// Lightweight scan destinations — photo bytes live in ``Coordinator/scanCaptures``,
@@ -65,6 +66,7 @@ final class Coordinator: ObservableObject {
     @Published var remindersPath = NavigationPath()
     @Published var scanPath = NavigationPath()
     @Published var scanPresetIntent: ScanIntent?
+    @Published private(set) var scanSessionID = UUID()
     /// Species detail presented as a sheet over Scan (avoids leaving the ID flow).
     @Published var scanSpeciesSheetId: Int?
 
@@ -99,12 +101,23 @@ final class Coordinator: ObservableObject {
         scanCaptures[routeId] = nil
     }
 
+    func completeScanSession() {
+        scanPath = NavigationPath()
+        scanCaptures.removeAll()
+        scanPresetIntent = nil
+        scanSessionID = UUID()
+    }
+
+    func consumeScanPresetIntent() -> ScanIntent? {
+        defer { scanPresetIntent = nil }
+        return scanPresetIntent
+    }
+
     func goToPlantDetail(_ id: UUID, from tab: AppTab? = nil) {
         let target = tab ?? .garden
+        completeScanSession()
         selectedTab = target
         if target == .garden {
-            scanPath = NavigationPath()
-            scanCaptures.removeAll()
             gardenPath = NavigationPath()
             gardenPath.append(AppRoute.plantDetail(id))
         } else if target == .reminders {
@@ -134,10 +147,30 @@ final class Coordinator: ObservableObject {
         catalogPath.append(AppRoute.speciesDetail(id))
     }
 
+    func goToGuideArticle(_ id: String) {
+        selectedTab = .catalog
+        catalogPath.append(AppRoute.guideArticle(id))
+    }
+
     func goToScan(mode: ScanMode, plantId: UUID? = nil) {
         scanPresetIntent = ScanIntent(mode: mode, plantId: plantId)
         scanPath = NavigationPath()
         scanCaptures.removeAll()
+        scanSessionID = UUID()
         selectedTab = .scan
+    }
+
+    func goToCareGuide(_ plantId: UUID, from tab: AppTab) {
+        switch tab {
+        case .garden:
+            gardenPath.append(AppRoute.careGuide(plantId))
+        case .catalog:
+            catalogPath.append(AppRoute.careGuide(plantId))
+        case .reminders:
+            remindersPath.append(AppRoute.careGuide(plantId))
+        case .scan, .settings:
+            selectedTab = .garden
+            gardenPath.append(AppRoute.careGuide(plantId))
+        }
     }
 }

@@ -14,20 +14,23 @@ final class GardenStore: ObservableObject {
     @Published private(set) var isGuest = false
 
     private var seededUserIds: Set<UUID> = []
+    private var localUserId: UUID?
 
     // MARK: - Load
 
     func loadAll(userId: UUID, isGuest: Bool = false) async {
         self.isGuest = isGuest
+        localUserId = isGuest ? userId : nil
         isLoading = true
         defer { isLoading = false }
 
         if isGuest {
+            LocalGardenStore.migrateLegacyDataIfNeeded(to: userId)
             if DemoContent.isEnabled {
                 seedLocalDemoDataIfNeeded(userId: userId)
             }
-            plants = LocalGardenStore.loadPlants()
-            reminders = LocalGardenStore.loadReminders()
+            plants = LocalGardenStore.loadPlants(userId: userId)
+            reminders = LocalGardenStore.loadReminders(userId: userId)
             return
         }
 
@@ -42,6 +45,118 @@ final class GardenStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func importGuestData(from guestUserId: UUID, to userId: UUID) async throws {
+        guard !isGuest else {
+            throw NSError(
+                domain: "GardenStore",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: String(localized: "Your account data is still loading. Please try again.")]
+            )
+        }
+        let guestPlants = LocalGardenStore.loadPlants(userId: guestUserId)
+        let guestReminders = LocalGardenStore.loadReminders(userId: guestUserId)
+        let guestScans = LocalGardenStore.loadScans(userId: guestUserId)
+        let guestGuides = LocalGardenStore.loadCareGuides(userId: guestUserId)
+        var plantIds: [UUID: UUID] = [:]
+
+        for guestPlant in guestPlants {
+            let photoUrl = try await migratePhoto(
+                path: guestPlant.photoUrl,
+                userId: userId,
+                folder: "plants"
+            )
+            let created = try await addPlant(
+                NewPlant(
+                    id: guestPlant.id,
+                    userId: userId,
+                    nickname: guestPlant.nickname,
+                    speciesCommonName: guestPlant.speciesCommonName,
+                    speciesLatinName: guestPlant.speciesLatinName,
+                    family: guestPlant.family,
+                    photoUrl: photoUrl,
+                    healthScore: guestPlant.healthScore,
+                    nextWateringDate: guestPlant.nextWateringDate,
+                    wateringIntervalDays: guestPlant.wateringIntervalDays,
+                    wateringAmountMl: guestPlant.wateringAmountMl,
+                    placement: guestPlant.placement
+                )
+            )
+            plantIds[guestPlant.id] = created.id
+        }
+
+        for guestScan in guestScans {
+            let photoUrl = try await migratePhoto(path: guestScan.photoUrl, userId: userId, folder: "logs")
+            _ = try await addScan(
+                NewScan(
+                    id: guestScan.id,
+                    userId: userId,
+                    plantId: guestScan.plantId.flatMap { plantIds[$0] },
+                    photoUrl: photoUrl,
+                    scanType: guestScan.scanType,
+                    confidence: guestScan.confidence,
+                    healthStatus: guestScan.healthStatus,
+                    healthScore: guestScan.healthScore,
+                    aiResultJson: guestScan.aiResultJson
+                )
+            )
+        }
+
+        for guestReminder in guestReminders where !guestReminder.isCompleted {
+            guard let plantId = plantIds[guestReminder.plantId] else { continue }
+            if guestReminder.type == "watering", let plant = plants.first(where: { $0.id == plantId }) {
+                let due = Self.dateTimeFormatter.date(from: guestReminder.dueAt)
+                    ?? ISO8601DateFormatter().date(from: guestReminder.dueAt)
+                    ?? Date()
+                _ = try await ensureWateringReminder(userId: userId, plant: plant, due: due)
+            } else {
+                _ = try await addReminder(
+                    NewReminder(
+                        id: guestReminder.id,
+                        userId: userId,
+                        plantId: plantId,
+                        type: guestReminder.type,
+                        dueAt: guestReminder.dueAt,
+                        amountLabel: guestReminder.amountLabel
+                    )
+                )
+            }
+        }
+
+        for guide in guestGuides {
+            _ = try await saveCareGuide(
+                NewCareGuide(
+                    userId: userId,
+                    plantId: nil,
+                    speciesLatinName: guide.speciesLatinName,
+                    lightRequirement: guide.lightRequirement,
+                    wateringFrequency: guide.wateringFrequency,
+                    wateringAmount: guide.wateringAmount,
+                    soilMix: guide.soilMix,
+                    temperatureRange: guide.temperatureRange,
+                    humidityRange: guide.humidityRange,
+                    difficultyLevel: guide.difficultyLevel,
+                    commonProblems: guide.commonProblems
+                )
+            )
+        }
+    }
+
+    private func migratePhoto(path: String?, userId: UUID, folder: String) async throws -> String? {
+        guard let path else { return nil }
+        guard path.hasPrefix(LocalPhotoStore.prefix) else { return path }
+        guard let imageData = LocalPhotoStore.load(path: path) else { return nil }
+        let sourcePath = String(path.dropFirst(LocalPhotoStore.prefix.count))
+        let fileName = URL(fileURLWithPath: sourcePath).lastPathComponent
+        return try await StorageService.upload(
+            userId: userId,
+            imageData: imageData,
+            folder: "\(folder)/guest-import",
+            isGuest: false,
+            fileName: fileName,
+            upsert: true
+        )
     }
 
     func fetchPlants(userId: UUID) async throws -> [Plant] {
@@ -66,7 +181,7 @@ final class GardenStore: ObservableObject {
 
     func fetchScans(plantId: UUID) async throws -> [PlantScan] {
         if isGuest {
-            return LocalGardenStore.loadScans()
+            return LocalGardenStore.loadScans(userId: localUserId)
                 .filter { $0.plantId == plantId }
                 .sorted { $0.capturedAt > $1.capturedAt }
         }
@@ -85,7 +200,7 @@ final class GardenStore: ObservableObject {
     func addPlant(_ plant: NewPlant) async throws -> Plant {
         if isGuest {
             let created = Plant(
-                id: UUID(),
+                id: plant.id ?? UUID(),
                 userId: plant.userId,
                 nickname: plant.nickname,
                 speciesCommonName: plant.speciesCommonName,
@@ -100,18 +215,36 @@ final class GardenStore: ObservableObject {
                 addedDate: Self.dateFormatter.string(from: Date()),
                 createdAt: ISO8601DateFormatter().string(from: Date())
             )
-            plants.insert(created, at: 0)
-            LocalGardenStore.savePlants(plants)
+            if let existingIndex = plants.firstIndex(where: { $0.id == created.id }) {
+                plants[existingIndex] = created
+            } else {
+                plants.insert(created, at: 0)
+            }
+            LocalGardenStore.savePlants(plants, userId: plant.userId)
             return created
         }
-        let inserted: [Plant] = try await SupabaseManager.client
-            .from("plants")
-            .insert(plant)
-            .select()
-            .execute()
-            .value
+        let inserted: [Plant]
+        if plant.id != nil {
+            inserted = try await SupabaseManager.client
+                .from("plants")
+                .upsert(plant, onConflict: "id")
+                .select()
+                .execute()
+                .value
+        } else {
+            inserted = try await SupabaseManager.client
+                .from("plants")
+                .insert(plant)
+                .select()
+                .execute()
+                .value
+        }
         if let created = inserted.first {
-            plants.insert(created, at: 0)
+            if let existingIndex = plants.firstIndex(where: { $0.id == created.id }) {
+                plants[existingIndex] = created
+            } else {
+                plants.insert(created, at: 0)
+            }
             return created
         }
         throw NSError(domain: "GardenStore", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not create plant.")])
@@ -126,7 +259,7 @@ final class GardenStore: ObservableObject {
         wateringAmountMl: Int? = nil,
         photoUrl: String? = nil,
         placement: PlantPlacement? = nil
-    ) async {
+    ) async throws {
         if isGuest {
             if let idx = plants.firstIndex(where: { $0.id == id }) {
                 if let nickname { plants[idx].nickname = nickname }
@@ -136,7 +269,7 @@ final class GardenStore: ObservableObject {
                 if let wateringAmountMl { plants[idx].wateringAmountMl = wateringAmountMl }
                 if let photoUrl { plants[idx].photoUrl = photoUrl }
                 if let placement { plants[idx].placement = placement }
-                LocalGardenStore.savePlants(plants)
+                LocalGardenStore.savePlants(plants, userId: localUserId)
             }
             return
         }
@@ -158,37 +291,43 @@ final class GardenStore: ObservableObject {
             photo_url: photoUrl,
             placement: placement?.rawValue
         )
-        do {
-            try await SupabaseManager.client.from("plants").update(patch).eq("id", value: id).execute()
-            if let idx = plants.firstIndex(where: { $0.id == id }) {
-                if let nickname { plants[idx].nickname = nickname }
-                if let healthScore { plants[idx].healthScore = healthScore }
-                if let nextWateringDate { plants[idx].nextWateringDate = nextWateringDate }
-                if let wateringIntervalDays { plants[idx].wateringIntervalDays = wateringIntervalDays }
-                if let wateringAmountMl { plants[idx].wateringAmountMl = wateringAmountMl }
-                if let photoUrl { plants[idx].photoUrl = photoUrl }
-                if let placement { plants[idx].placement = placement }
-            }
-        } catch {
-            errorMessage = error.localizedDescription
+        try await SupabaseManager.client.from("plants").update(patch).eq("id", value: id).execute()
+        if let idx = plants.firstIndex(where: { $0.id == id }) {
+            if let nickname { plants[idx].nickname = nickname }
+            if let healthScore { plants[idx].healthScore = healthScore }
+            if let nextWateringDate { plants[idx].nextWateringDate = nextWateringDate }
+            if let wateringIntervalDays { plants[idx].wateringIntervalDays = wateringIntervalDays }
+            if let wateringAmountMl { plants[idx].wateringAmountMl = wateringAmountMl }
+            if let photoUrl { plants[idx].photoUrl = photoUrl }
+            if let placement { plants[idx].placement = placement }
         }
     }
 
     func deletePlant(id: UUID) async {
+        let plantPhoto = plants.first(where: { $0.id == id })?.photoUrl
+        let scanPhotos = (try? await fetchScans(plantId: id)).flatMap { scans in
+            scans.compactMap(\.photoUrl)
+        } ?? []
         if isGuest {
             plants.removeAll { $0.id == id }
             reminders.removeAll { $0.plantId == id }
-            LocalGardenStore.savePlants(plants)
-            LocalGardenStore.saveReminders(reminders)
-            var scans = LocalGardenStore.loadScans()
+            LocalGardenStore.savePlants(plants, userId: localUserId)
+            LocalGardenStore.saveReminders(reminders, userId: localUserId)
+            var scans = LocalGardenStore.loadScans(userId: localUserId)
             scans.removeAll { $0.plantId == id }
-            LocalGardenStore.saveScans(scans)
+            LocalGardenStore.saveScans(scans, userId: localUserId)
+            for path in Set(([plantPhoto].compactMap { $0 }) + scanPhotos) {
+                try? await StorageService.remove(path: path, isGuest: true)
+            }
             return
         }
         do {
             try await SupabaseManager.client.from("plants").delete().eq("id", value: id).execute()
             plants.removeAll { $0.id == id }
             reminders.removeAll { $0.plantId == id }
+            for path in Set(([plantPhoto].compactMap { $0 }) + scanPhotos) {
+                try? await StorageService.remove(path: path, isGuest: false)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -200,7 +339,7 @@ final class GardenStore: ObservableObject {
     func addScan(_ scan: NewScan) async throws -> PlantScan {
         if isGuest {
             let created = PlantScan(
-                id: UUID(),
+                id: scan.id ?? UUID(),
                 userId: scan.userId,
                 plantId: scan.plantId,
                 photoUrl: scan.photoUrl,
@@ -211,38 +350,71 @@ final class GardenStore: ObservableObject {
                 healthScore: scan.healthScore,
                 aiResultJson: scan.aiResultJson
             )
-            var scans = LocalGardenStore.loadScans()
+            var scans = LocalGardenStore.loadScans(userId: scan.userId)
+            scans.removeAll { $0.id == created.id }
             scans.insert(created, at: 0)
-            LocalGardenStore.saveScans(scans)
+            LocalGardenStore.saveScans(scans, userId: scan.userId)
             return created
         }
-        let inserted: [PlantScan] = try await SupabaseManager.client
-            .from("scans")
-            .insert(scan)
-            .select()
-            .execute()
-            .value
+        let inserted: [PlantScan]
+        if scan.id != nil {
+            inserted = try await SupabaseManager.client
+                .from("scans")
+                .upsert(scan, onConflict: "id")
+                .select()
+                .execute()
+                .value
+        } else {
+            inserted = try await SupabaseManager.client
+                .from("scans")
+                .insert(scan)
+                .select()
+                .execute()
+                .value
+        }
         guard let created = inserted.first else {
             throw NSError(domain: "GardenStore", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not save scan.")])
         }
         return created
     }
 
+    func deleteScan(_ scan: PlantScan) async throws {
+        if isGuest {
+            var scans = LocalGardenStore.loadScans(userId: localUserId)
+            scans.removeAll { $0.id == scan.id }
+            LocalGardenStore.saveScans(scans, userId: localUserId)
+        } else {
+            try await SupabaseManager.client
+                .from("scans")
+                .delete()
+                .eq("id", value: scan.id)
+                .execute()
+        }
+        if let photoUrl = scan.photoUrl {
+            try await StorageService.remove(path: photoUrl, isGuest: isGuest)
+        }
+    }
+
     // MARK: - Care guides
 
     func fetchCareGuide(userId: UUID, speciesLatinName: String) async throws -> CareGuide? {
         if isGuest {
-            return LocalGardenStore.loadCareGuides().first { $0.speciesLatinName == speciesLatinName }
+            return LocalGardenStore.loadCareGuides(userId: userId).first { $0.speciesLatinName == speciesLatinName }
         }
-        let guides: [CareGuide] = try await SupabaseManager.client
-            .from("care_guides")
-            .select()
-            .eq("user_id", value: userId)
-            .eq("species_latin_name", value: speciesLatinName)
-            .limit(1)
-            .execute()
-            .value
-        return guides.first
+        do {
+            let guides: [CareGuide] = try await SupabaseManager.client
+                .from("care_guides")
+                .select()
+                .eq("user_id", value: userId)
+                .eq("species_latin_name", value: speciesLatinName)
+                .order("generated_at", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            return guides.first ?? LocalGardenStore.loadCareGuides(userId: userId).first { $0.speciesLatinName == speciesLatinName }
+        } catch {
+            return LocalGardenStore.loadCareGuides(userId: userId).first { $0.speciesLatinName == speciesLatinName }
+        }
     }
 
     @discardableResult
@@ -260,15 +432,15 @@ final class GardenStore: ObservableObject {
                 difficultyLevel: guide.difficultyLevel,
                 commonProblems: guide.commonProblems
             )
-            var guides = LocalGardenStore.loadCareGuides()
+            var guides = LocalGardenStore.loadCareGuides(userId: guide.userId)
             guides.removeAll { $0.speciesLatinName == guide.speciesLatinName }
             guides.append(created)
-            LocalGardenStore.saveCareGuides(guides)
+            LocalGardenStore.saveCareGuides(guides, userId: guide.userId)
             return created
         }
         let inserted: [CareGuide] = try await SupabaseManager.client
             .from("care_guides")
-            .insert(guide)
+            .upsert(guide, onConflict: "user_id,species_latin_name")
             .select()
             .execute()
             .value
@@ -284,7 +456,7 @@ final class GardenStore: ObservableObject {
     func addReminder(_ reminder: NewReminder) async throws -> Reminder {
         if isGuest {
             let created = Reminder(
-                id: UUID(),
+                id: reminder.id ?? UUID(),
                 userId: reminder.userId,
                 plantId: reminder.plantId,
                 type: reminder.type,
@@ -293,17 +465,28 @@ final class GardenStore: ObservableObject {
                 isCompleted: false,
                 snoozedUntil: nil
             )
+            reminders.removeAll { $0.id == created.id }
             reminders.append(created)
             reminders.sort { $0.dueAt < $1.dueAt }
-            LocalGardenStore.saveReminders(reminders)
+            LocalGardenStore.saveReminders(reminders, userId: reminder.userId)
             return created
         }
-        let inserted: [Reminder] = try await SupabaseManager.client
-            .from("reminders")
-            .insert(reminder)
-            .select()
-            .execute()
-            .value
+        let inserted: [Reminder]
+        if reminder.id != nil {
+            inserted = try await SupabaseManager.client
+                .from("reminders")
+                .upsert(reminder, onConflict: "id")
+                .select()
+                .execute()
+                .value
+        } else {
+            inserted = try await SupabaseManager.client
+                .from("reminders")
+                .insert(reminder)
+                .select()
+                .execute()
+                .value
+        }
         guard let created = inserted.first else {
             throw NSError(domain: "GardenStore", code: 4, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not create reminder.")])
         }
@@ -313,59 +496,154 @@ final class GardenStore: ObservableObject {
     }
 
     func markWatered(_ reminder: Reminder) async {
-        if isGuest {
-            if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
-                reminders[idx].isCompleted = true
-                LocalGardenStore.saveReminders(reminders)
-            }
-            if let plant = plants.first(where: { $0.id == reminder.plantId }), reminder.type == "watering" {
-                let interval = plant.wateringIntervalDays ?? 7
-                let nextDate = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
-                await updatePlant(id: plant.id, nextWateringDate: Self.dateFormatter.string(from: nextDate))
-            }
-            return
-        }
-        struct Patch: Encodable { var is_completed: Bool }
         do {
-            try await SupabaseManager.client.from("reminders").update(Patch(is_completed: true)).eq("id", value: reminder.id).execute()
-            if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
-                reminders[idx].isCompleted = true
-            }
-            if let plant = plants.first(where: { $0.id == reminder.plantId }), reminder.type == "watering" {
-                let interval = plant.wateringIntervalDays ?? 7
-                let nextDate = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
-                await updatePlant(id: plant.id, nextWateringDate: Self.dateFormatter.string(from: nextDate))
-            }
+            try await completeReminder(reminder)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    func snooze(_ reminder: Reminder, days: Int = 1) async {
-        guard let current = Self.dateTimeFormatter.date(from: reminder.dueAt) ?? ISO8601DateFormatter().date(from: reminder.dueAt) else { return }
-        let newDate = Calendar.current.date(byAdding: .day, value: days, to: current) ?? current
-        await reschedule(reminder, to: newDate)
+    func completeReminder(_ reminder: Reminder) async throws {
+        if isGuest {
+            if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
+                reminders[idx].isCompleted = true
+                LocalGardenStore.saveReminders(reminders, userId: localUserId)
+            }
+            if let plant = plants.first(where: { $0.id == reminder.plantId }), reminder.type == "watering" {
+                let interval = plant.wateringIntervalDays ?? 7
+                let nextDate = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
+                try await updatePlant(id: plant.id, nextWateringDate: Self.dateFormatter.string(from: nextDate))
+                _ = try await ensureWateringReminder(
+                    userId: reminder.userId,
+                    plant: plant,
+                    due: nextDate
+                )
+            }
+            return
+        }
+        struct Patch: Encodable { var is_completed: Bool }
+        if let plant = plants.first(where: { $0.id == reminder.plantId }), reminder.type == "watering" {
+            let interval = plant.wateringIntervalDays ?? 7
+            let nextDate = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
+            struct WateringCompletion: Encodable {
+                var p_reminder_id: UUID
+                var p_next_watering_date: String
+                var p_next_due_at: String
+                var p_next_amount_label: String?
+            }
+            struct WateringCompletionResult: Decodable {
+                var next_watering_date: String
+                var next_reminder_id: UUID
+                var next_reminder_due_at: String
+                var next_reminder_amount_label: String?
+            }
+
+            let result: [WateringCompletionResult] = try await SupabaseManager.client
+                .rpc(
+                    "complete_watering_reminder",
+                    params: WateringCompletion(
+                        p_reminder_id: reminder.id,
+                        p_next_watering_date: Self.dateFormatter.string(from: nextDate),
+                        p_next_due_at: ISO8601DateFormatter().string(from: nextDate),
+                        p_next_amount_label: plant.wateringAmountMl.map { UnitsFormatting.waterAmount(ml: $0) }
+                    )
+                )
+                .execute()
+                .value
+            guard let completion = result.first else {
+                throw NSError(
+                    domain: "GardenStore",
+                    code: 6,
+                    userInfo: [NSLocalizedDescriptionKey: String(localized: "Couldn't complete watering reminder.")]
+                )
+            }
+            if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
+                reminders[idx].isCompleted = true
+            }
+            if let plantIndex = plants.firstIndex(where: { $0.id == plant.id }) {
+                plants[plantIndex].nextWateringDate = completion.next_watering_date
+            }
+            let nextReminder = Reminder(
+                id: completion.next_reminder_id,
+                userId: reminder.userId,
+                plantId: plant.id,
+                type: "watering",
+                dueAt: completion.next_reminder_due_at,
+                amountLabel: completion.next_reminder_amount_label,
+                isCompleted: false,
+                snoozedUntil: nil
+            )
+            reminders.removeAll { $0.id == nextReminder.id }
+            reminders.append(nextReminder)
+            reminders.sort { $0.dueAt < $1.dueAt }
+            return
+        }
+        try await SupabaseManager.client.from("reminders").update(Patch(is_completed: true)).eq("id", value: reminder.id).execute()
+        if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
+            reminders[idx].isCompleted = true
+        }
     }
 
-    func reschedule(_ reminder: Reminder, to date: Date) async {
+    func updateWateringSchedule(
+        plantId: UUID,
+        userId: UUID,
+        interval: Int,
+        amount: Int
+    ) async throws {
+        guard let plant = plants.first(where: { $0.id == plantId }) else { return }
+        let nextDate = Calendar.current.date(byAdding: .day, value: interval, to: Date()) ?? Date()
+        try await updatePlant(
+            id: plantId,
+            nextWateringDate: Self.dateFormatter.string(from: nextDate),
+            wateringIntervalDays: interval,
+            wateringAmountMl: amount
+        )
+        guard let updated = plants.first(where: { $0.id == plantId }) else { return }
+        _ = try await ensureWateringReminder(userId: userId, plant: updated, due: nextDate)
+    }
+
+    func ensureWateringReminder(userId: UUID, plant: Plant, due: Date) async throws -> Reminder {
+        let dueAt = ISO8601DateFormatter().string(from: due)
+        let amountLabel = plant.wateringAmountMl.map { UnitsFormatting.waterAmount(ml: $0) }
+        if let existing = reminders.first(where: { $0.plantId == plant.id && $0.type == "watering" && !$0.isCompleted }) {
+            try await reschedule(existing, to: due)
+            return reminders.first(where: { $0.id == existing.id }) ?? existing
+        }
+        return try await addReminder(
+            NewReminder(
+                userId: userId,
+                plantId: plant.id,
+                type: "watering",
+                dueAt: dueAt,
+                amountLabel: amountLabel
+            )
+        )
+    }
+
+    func snooze(_ reminder: Reminder, days: Int = 1) async {
+        let newDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) ?? Date()
+        do {
+            try await reschedule(reminder, to: newDate)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func reschedule(_ reminder: Reminder, to date: Date) async throws {
         let iso = ISO8601DateFormatter().string(from: date)
         if isGuest {
             if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
                 reminders[idx].dueAt = iso
                 reminders.sort { $0.dueAt < $1.dueAt }
-                LocalGardenStore.saveReminders(reminders)
+                LocalGardenStore.saveReminders(reminders, userId: localUserId)
             }
             return
         }
         struct Patch: Encodable { var due_at: String }
-        do {
-            try await SupabaseManager.client.from("reminders").update(Patch(due_at: iso)).eq("id", value: reminder.id).execute()
-            if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
-                reminders[idx].dueAt = iso
-                reminders.sort { $0.dueAt < $1.dueAt }
-            }
-        } catch {
-            errorMessage = error.localizedDescription
+        try await SupabaseManager.client.from("reminders").update(Patch(due_at: iso)).eq("id", value: reminder.id).execute()
+        if let idx = reminders.firstIndex(where: { $0.id == reminder.id }) {
+            reminders[idx].dueAt = iso
+            reminders.sort { $0.dueAt < $1.dueAt }
         }
     }
 
@@ -408,7 +686,7 @@ final class GardenStore: ObservableObject {
     // MARK: - Demo seed (guest / local)
 
     private func seedLocalDemoDataIfNeeded(userId: UUID) {
-        guard LocalGardenStore.loadPlants().isEmpty else { return }
+        guard LocalGardenStore.loadPlants(userId: userId).isEmpty else { return }
         var seededPlants: [Plant] = []
         var seededReminders: [Reminder] = []
 
@@ -443,8 +721,8 @@ final class GardenStore: ObservableObject {
             seededPlants.append(plant)
             seededReminders.append(reminder)
         }
-        LocalGardenStore.savePlants(seededPlants)
-        LocalGardenStore.saveReminders(seededReminders)
+        LocalGardenStore.savePlants(seededPlants, userId: userId)
+        LocalGardenStore.saveReminders(seededReminders, userId: userId)
     }
 
     private static let demoSeeds: [(nickname: String, common: String, latin: String, family: String, score: Int, interval: Int, amount: Int, waterOffset: Int)] = [

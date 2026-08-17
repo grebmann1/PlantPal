@@ -62,17 +62,24 @@ struct ScanPlantView: View {
                 bottomStrip
             }
         }
-        .onAppear(perform: applyPresetIntent)
-        .onChange(of: coordinator.scanPresetIntent) { _, _ in applyPresetIntent() }
+        .onAppear(perform: startScanSession)
+        .onChange(of: coordinator.scanSessionID) { _, _ in startScanSession() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .fullScreenCover(isPresented: $showCamera) {
-            ImagePicker(sourceType: .camera, flashMode: flashMode.pickerFlash) { image in handleCaptured(image) }
+            ImagePicker(
+                sourceType: .camera,
+                flashMode: flashMode.pickerFlash,
+                onImage: handleCaptured,
+                onDismiss: { showCamera = false }
+            )
                 .ignoresSafeArea()
         }
         .sheet(isPresented: $showLibrary) {
-            ImagePicker(sourceType: .photoLibrary) { image in
-                handleCaptured(image)
-            }
+            ImagePicker(
+                sourceType: .photoLibrary,
+                onImage: handleCaptured,
+                onDismiss: { showLibrary = false }
+            )
         }
         // Hide system nav only on the capture root — pushed ID/Health need their bars.
         .toolbar(coordinator.scanPath.isEmpty ? .hidden : .automatic, for: .navigationBar)
@@ -296,10 +303,20 @@ struct ScanPlantView: View {
         }
     }
 
-    private func applyPresetIntent() {
-        guard let intent = coordinator.scanPresetIntent else { return }
-        mode = intent.mode
-        contextPlantId = intent.plantId
+    private func startScanSession() {
+        if let intent = coordinator.consumeScanPresetIntent() {
+            mode = intent.mode
+            contextPlantId = intent.plantId
+            libraryPreview = nil
+        } else if coordinator.scanPath.isEmpty {
+            resetForNewScan()
+        }
+    }
+
+    private func resetForNewScan() {
+        mode = .identify
+        contextPlantId = nil
+        libraryPreview = nil
     }
 
     private func handleCaptured(_ image: UIImage) {

@@ -14,11 +14,14 @@ final class SpeciesCatalogStore: ObservableObject {
 
     private var detailsCache: [Int: SpeciesCatalog] = [:]
     private var lookupCache: [String: SpeciesCatalog] = [:]
+    private var searchGeneration = 0
 
     var canLoadMore: Bool { page < lastPage && !isLoading && !isLoadingMore }
 
     func search(query: String, indoorOnly: Bool = true) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchGeneration += 1
+        let generation = searchGeneration
         isLoading = true
         errorMessage = nil
         lastQuery = trimmed
@@ -32,11 +35,13 @@ final class SpeciesCatalogStore: ObservableObject {
                 page: 1,
                 indoor: indoorOnly
             )
+            guard generation == searchGeneration else { return }
             results = response.data
             lastPage = response.lastPage ?? 1
             total = response.total ?? response.data.count
             cache(response.data)
         } catch {
+            guard generation == searchGeneration else { return }
             results = []
             errorMessage = error.localizedDescription
         }
@@ -48,12 +53,14 @@ final class SpeciesCatalogStore: ObservableObject {
         defer { isLoadingMore = false }
 
         let next = page + 1
+        let generation = searchGeneration
         do {
             let response = try await SpeciesCatalogService.search(
                 query: lastQuery,
                 page: next,
                 indoor: indoorOnly
             )
+            guard generation == searchGeneration else { return }
             page = next
             lastPage = response.lastPage ?? lastPage
             total = response.total ?? total
@@ -62,12 +69,15 @@ final class SpeciesCatalogStore: ObservableObject {
             results.append(contentsOf: appended)
             cache(appended)
         } catch {
+            guard generation == searchGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
 
     func details(for id: Int) async throws -> SpeciesCatalog {
-        if let cached = detailsCache[id], cached.detailsFetched {
+        if let cached = detailsCache[id],
+           cached.detailsFetched,
+           cached.hasUsableDetails {
             return cached
         }
         let species = try await SpeciesCatalogService.details(id: id)
@@ -85,7 +95,11 @@ final class SpeciesCatalogStore: ObservableObject {
     func lookup(scientificName: String) async -> SpeciesCatalog? {
         let key = scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !key.isEmpty else { return nil }
-        if let cached = lookupCache[key] { return cached }
+        if let cached = lookupCache[key],
+           cached.detailsFetched,
+           cached.hasUsableDetails {
+            return cached
+        }
         do {
             guard let species = try await SpeciesCatalogService.lookup(scientificName: scientificName) else {
                 return nil

@@ -1,5 +1,10 @@
 import SwiftUI
 
+private enum DiscoverSection: String, CaseIterable {
+    case species = "Species"
+    case guides = "Guides"
+}
+
 struct SpeciesCatalogView: View {
     @EnvironmentObject private var catalog: SpeciesCatalogStore
     @EnvironmentObject private var speciesCollections: SpeciesCollectionStore
@@ -9,10 +14,47 @@ struct SpeciesCatalogView: View {
     @State private var query = ""
     @State private var indoorOnly = true
     @State private var searchTask: Task<Void, Never>?
+    @State private var selectedSection: DiscoverSection = .species
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
+        Group {
+            switch selectedSection {
+            case .species:
+                speciesCatalog
+            case .guides:
+                GuideLibraryView()
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 10) {
+                discoverSectionPicker
+                if selectedSection == .species {
+                    searchControls
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .background(theme.background)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(theme.separator)
+                    .frame(height: 1)
+            }
+        }
+        .task {
+            if catalog.results.isEmpty {
+                await catalog.search(query: "", indoorOnly: indoorOnly)
+            }
+        }
+        .onChange(of: query) { _, newValue in
+            scheduleSearch(newValue)
+        }
+    }
+
+    private var speciesCatalog: some View {
         ScrollView {
             ZStack(alignment: .bottomTrailing) {
                 LeafWatermark(opacity: 0.07, rotation: 18, color: theme.primary)
@@ -35,7 +77,7 @@ struct SpeciesCatalogView: View {
                         emptyState
                     } else {
                         resultsGrid
-                        if catalog.canLoadMore || catalog.isLoadingMore {
+                        if catalog.canLoadMore || catalog.isLoadingMore || catalog.errorMessage != nil {
                             loadMoreRow
                         }
                     }
@@ -49,31 +91,39 @@ struct SpeciesCatalogView: View {
             showMarginRail: true,
             marginNote: "Species index"
         )
-        .safeAreaInset(edge: .top, spacing: 0) {
-            searchControls
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-                .background(theme.background)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(theme.separator)
-                        .frame(height: 1)
-                }
-        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { EmptyView() }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
-        .task {
-            if catalog.results.isEmpty {
-                await catalog.search(query: "", indoorOnly: indoorOnly)
+    }
+
+    private var discoverSectionPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(DiscoverSection.allCases, id: \.self) { section in
+                Button {
+                    withAnimation(theme.motion.easing) {
+                        selectedSection = section
+                    }
+                } label: {
+                    Label(
+                        section.rawValue,
+                        systemImage: section == .species ? "leaf" : "book.pages"
+                    )
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(selectedSection == section ? theme.onPrimary : theme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(selectedSection == section ? theme.primary : Color.clear)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
             }
         }
-        .onChange(of: query) { _, newValue in
-            scheduleSearch(newValue)
-        }
+        .padding(3)
+        .background(theme.surfaceSecondary)
+        .clipShape(Capsule())
     }
 
     private var collectionSections: some View {
@@ -247,25 +297,33 @@ struct SpeciesCatalogView: View {
     }
 
     private var loadMoreRow: some View {
-        Button {
-            Task { await catalog.loadMore() }
-        } label: {
-            if catalog.isLoadingMore {
-                ProgressView().tint(theme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-            } else {
-                Text("Load more")
-                    .font(theme.headlineFont)
-                    .foregroundStyle(theme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+        VStack(spacing: 8) {
+            if let error = catalog.errorMessage {
+                Text("Couldn't load more: \(error)")
+                    .font(theme.footnoteFont)
+                    .foregroundStyle(theme.error)
+                    .multilineTextAlignment(.center)
             }
+            Button {
+                Task { await catalog.loadMore() }
+            } label: {
+                if catalog.isLoadingMore {
+                    ProgressView().tint(theme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                } else {
+                    Text(catalog.errorMessage == nil ? "Load more" : "Retry")
+                        .font(theme.headlineFont)
+                        .foregroundStyle(theme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(catalog.isLoadingMore || !catalog.canLoadMore)
         }
-        .buttonStyle(.plain)
         .background(theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: theme.radius.md))
-        .disabled(catalog.isLoadingMore)
     }
 
     private var emptyState: some View {

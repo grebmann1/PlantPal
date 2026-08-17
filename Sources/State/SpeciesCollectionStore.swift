@@ -39,8 +39,9 @@ final class SpeciesCollectionStore: ObservableObject {
         defer { isLoading = false }
 
         if isGuest {
+            LocalSpeciesCollectionStore.migrateLegacyDataIfNeeded(to: userId)
             activities = Dictionary(
-                uniqueKeysWithValues: LocalSpeciesCollectionStore.load().map { ($0.id, $0) }
+                uniqueKeysWithValues: LocalSpeciesCollectionStore.load(userId: userId).map { ($0.id, $0) }
             )
             return
         }
@@ -67,6 +68,7 @@ final class SpeciesCollectionStore: ObservableObject {
     }
 
     func toggleFavorite(_ species: SpeciesCatalog) async {
+        let previous = activities[species.id]
         var activity = activities[species.id] ?? SpeciesActivity(
             species: species,
             isFavorite: false,
@@ -80,7 +82,10 @@ final class SpeciesCollectionStore: ObservableObject {
             activities[species.id] = nil
             saveLocally()
         } else {
-            await persistFavorite(activity)
+            let didPersist = await persistFavorite(activity)
+            if !didPersist {
+                activities[species.id] = previous
+            }
         }
     }
 
@@ -99,13 +104,13 @@ final class SpeciesCollectionStore: ObservableObject {
         }
     }
 
-    private func persistFavorite(_ activity: SpeciesActivity) async {
+    private func persistFavorite(_ activity: SpeciesActivity) async -> Bool {
         if isGuest {
             saveLocally()
             errorMessage = nil
-            return
+            return true
         }
-        guard let userId else { return }
+        guard let userId else { return false }
         do {
             try await SpeciesCollectionService.saveFavorite(
                 speciesId: activity.id,
@@ -113,30 +118,42 @@ final class SpeciesCollectionStore: ObservableObject {
                 userId: userId
             )
             errorMessage = nil
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
     private func saveLocally() {
-        LocalSpeciesCollectionStore.save(Array(activities.values))
+        LocalSpeciesCollectionStore.save(Array(activities.values), userId: userId)
+    }
+
+    func importGuestActivities(from guestUserId: UUID, to userId: UUID) async throws {
+        let guestActivities = LocalSpeciesCollectionStore.load(userId: guestUserId)
+        let cloudActivities = try await SpeciesCollectionService.fetchAll(userId: userId)
+        let merged = Self.mergeGuestActivities(cloud: cloudActivities, guest: guestActivities)
+        let cloudById = Dictionary(uniqueKeysWithValues: cloudActivities.map { ($0.id, $0) })
+
+        for activity in merged where cloudById[activity.id] != activity {
+            try await SpeciesCollectionService.save(activity, userId: userId)
+        }
+        activities = Dictionary(uniqueKeysWithValues: merged.map { ($0.id, $0) })
     }
 
     private func mergeGuestActivityIfNeeded(
         cloud: [SpeciesActivity],
         into userId: UUID
     ) async -> [SpeciesActivity] {
-        let local = LocalSpeciesCollectionStore.load()
+        let local = LocalSpeciesCollectionStore.load(userId: userId)
         guard !local.isEmpty else { return cloud }
 
         var merged = Dictionary(uniqueKeysWithValues: cloud.map { ($0.id, $0) })
         var allSaved = true
         for localActivity in local {
-            var activity = merged[localActivity.id] ?? localActivity
-            activity.isFavorite = activity.isFavorite || localActivity.isFavorite
-            activity.lastViewedAt = maxTimestamp(
-                activity.lastViewedAt,
-                localActivity.lastViewedAt
+            let activity = Self.mergeActivity(
+                cloud: merged[localActivity.id],
+                guest: localActivity
             )
             merged[activity.id] = activity
             do {
@@ -147,12 +164,28 @@ final class SpeciesCollectionStore: ObservableObject {
             }
         }
         if allSaved {
-            LocalSpeciesCollectionStore.clear()
+            LocalSpeciesCollectionStore.clear(userId: userId)
         }
         return Array(merged.values)
     }
 
-    private func maxTimestamp(_ lhs: String?, _ rhs: String?) -> String? {
+    static func mergeGuestActivities(cloud: [SpeciesActivity], guest: [SpeciesActivity]) -> [SpeciesActivity] {
+        var merged = Dictionary(uniqueKeysWithValues: cloud.map { ($0.id, $0) })
+        for guestActivity in guest {
+            let activity = mergeActivity(cloud: merged[guestActivity.id], guest: guestActivity)
+            merged[activity.id] = activity
+        }
+        return Array(merged.values)
+    }
+
+    private static func mergeActivity(cloud: SpeciesActivity?, guest: SpeciesActivity) -> SpeciesActivity {
+        guard var cloud else { return guest }
+        cloud.isFavorite = cloud.isFavorite || guest.isFavorite
+        cloud.lastViewedAt = maxTimestamp(cloud.lastViewedAt, guest.lastViewedAt)
+        return cloud
+    }
+
+    private static func maxTimestamp(_ lhs: String?, _ rhs: String?) -> String? {
         switch (lhs, rhs) {
         case (nil, nil):
             return nil

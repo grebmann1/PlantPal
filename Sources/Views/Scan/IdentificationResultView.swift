@@ -28,6 +28,7 @@ struct IdentificationResultView: View {
     @State private var alternateCatalog: [String: SpeciesCatalog] = [:]
     @State private var photos: [Data] = []
     @State private var selectedPhotoIndex = 0
+    @State private var identificationTask: Task<Void, Never>?
 
     private var scannedAtLabel: String {
         let f = DateFormatter()
@@ -80,6 +81,7 @@ struct IdentificationResultView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
+                    guard !isSaving else { return }
                     dismiss()
                 } label: {
                     HStack(spacing: 4) {
@@ -118,8 +120,9 @@ struct IdentificationResultView: View {
             if photos.isEmpty {
                 photos = context.images.isEmpty ? [context.imageData] : context.images
             }
-            await runIdentification()
+            startIdentification()
         }
+        .onDisappear { identificationTask?.cancel() }
         .onChange(of: selectedMatchIndex) { _, newValue in
             guard let result else { return }
             let latin = newValue >= 0
@@ -255,10 +258,11 @@ struct IdentificationResultView: View {
 
             HStack(spacing: 12) {
                 Button("Try again") {
-                    Task { await runIdentification() }
+                    startIdentification()
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(theme.primary)
+                .disabled(isLoading)
 
                 if showDemoFallback {
                     Button("Use Demo Match") {
@@ -724,12 +728,20 @@ struct IdentificationResultView: View {
             result = await SpeciesI18nService.localizeIdentification(identified)
             // Leave nickname empty so placeholder "e.g. Window Monster" shows
             await enrichFromCatalog(latinName: identified.speciesLatinName)
+        } catch is CancellationError {
+            return
         } catch {
             let friendly = AIProxyError.from(error)
             errorMessage = friendly.localizedDescription
             showDemoFallback = friendly.offersDemoFallback
         }
         isLoading = false
+    }
+
+    private func startIdentification() {
+        guard !isLoading || identificationTask == nil else { return }
+        identificationTask?.cancel()
+        identificationTask = Task { await runIdentification() }
     }
 
     private func enrichFromCatalog(latinName: String) async {
@@ -762,9 +774,11 @@ struct IdentificationResultView: View {
         }
         isSaving = true
         defer { isSaving = false }
+        var uploadedPaths: [String] = []
+        var createdPlant: Plant?
+        var savedScans: [PlantScan] = []
         do {
             let album = photos.isEmpty ? [context.imageData] : photos
-            var uploadedPaths: [String] = []
             var uploadError: Error?
             for data in album {
                 do {
@@ -779,7 +793,10 @@ struct IdentificationResultView: View {
                     uploadError = error
                 }
             }
-            guard let photoPath = uploadedPaths.first else {
+            guard uploadedPaths.count == album.count, let photoPath = uploadedPaths.first else {
+                for path in uploadedPaths {
+                    try? await StorageService.remove(path: path, isGuest: appState.isGuest)
+                }
                 errorMessage = String(
                     localized: "Couldn't add this plant: \(uploadError?.localizedDescription ?? "no photo to save")"
                 )
@@ -800,46 +817,33 @@ struct IdentificationResultView: View {
                 wateringAmountMl: 250
             )
             let created = try await garden.addPlant(newPlant)
-            if uploadedPaths.count < album.count {
-                garden.errorMessage = String(
-                    localized: "Plant added with \(uploadedPaths.count) of \(album.count) photos."
-                )
-            }
+            createdPlant = created
             let payload: AIScanPayload? = result.map { .identify($0) }
-            do {
-                for (index, path) in uploadedPaths.enumerated() {
-                    _ = try await garden.addScan(
-                        NewScan(
-                            userId: userId,
-                            plantId: created.id,
-                            photoUrl: path,
-                            scanType: index == 0 ? "identify" : "log",
-                            confidence: index == 0 ? normalizedConfidence(confidence) : nil,
-                            healthStatus: nil,
-                            healthScore: nil,
-                            aiResultJson: index == 0 ? payload : nil
-                        )
-                    )
-                }
-            } catch {
-                garden.errorMessage = String(localized: "Plant added, but couldn't save the scan: \(error.localizedDescription)")
-            }
-            do {
-                _ = try await garden.addReminder(
-                    NewReminder(
+            for (index, path) in uploadedPaths.enumerated() {
+                let scan = try await garden.addScan(
+                    NewScan(
                         userId: userId,
                         plantId: created.id,
-                        type: "watering",
-                        dueAt: ISO8601DateFormatter().string(from: nextWater),
-                        amountLabel: UnitsFormatting.waterAmount(ml: 250)
+                        photoUrl: path,
+                        scanType: index == 0 ? "identify" : "log",
+                        confidence: index == 0 ? normalizedConfidence(confidence) : nil,
+                        healthStatus: nil,
+                        healthScore: nil,
+                        aiResultJson: index == 0 ? payload : nil
                     )
                 )
-            } catch {
-                let reminderError = String(localized: "Plant added, but couldn't create a watering reminder: \(error.localizedDescription)")
-                garden.errorMessage = garden.errorMessage.map { "\($0)\n\(reminderError)" } ?? reminderError
+                savedScans.append(scan)
             }
+            _ = try await garden.ensureWateringReminder(userId: userId, plant: created, due: nextWater)
             coordinator.goToPlantDetail(created.id)
         } catch {
+            if let createdPlant {
+                await garden.deletePlant(id: createdPlant.id)
+            } else {
+                for path in uploadedPaths {
+                    try? await StorageService.remove(path: path, isGuest: appState.isGuest)
+                }
+            }
             errorMessage = String(localized: "Couldn't add this plant: \(error.localizedDescription)")
         }
     }

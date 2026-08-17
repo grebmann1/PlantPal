@@ -11,36 +11,79 @@ enum LocalGardenStore {
     private static let scansKey = "pp.local.scans"
     private static let careGuidesKey = "pp.local.careguides"
 
-    static func loadPlants() -> [Plant] {
-        load(plantsKey)
+    private static func key(_ base: String, userId: UUID?) -> String {
+        guard let userId else { return base }
+        return "\(base).\(userId.uuidString)"
     }
 
-    static func savePlants(_ plants: [Plant]) {
-        save(plants, key: plantsKey)
+    static func loadPlants(userId: UUID? = nil) -> [Plant] {
+        load(key(plantsKey, userId: userId))
     }
 
-    static func loadReminders() -> [Reminder] {
-        load(remindersKey)
+    static func savePlants(_ plants: [Plant], userId: UUID? = nil) {
+        save(plants, key: key(plantsKey, userId: userId))
     }
 
-    static func saveReminders(_ reminders: [Reminder]) {
-        save(reminders, key: remindersKey)
+    static func loadReminders(userId: UUID? = nil) -> [Reminder] {
+        load(key(remindersKey, userId: userId))
     }
 
-    static func loadScans() -> [PlantScan] {
-        load(scansKey)
+    static func saveReminders(_ reminders: [Reminder], userId: UUID? = nil) {
+        save(reminders, key: key(remindersKey, userId: userId))
     }
 
-    static func saveScans(_ scans: [PlantScan]) {
-        save(scans, key: scansKey)
+    static func loadScans(userId: UUID? = nil) -> [PlantScan] {
+        load(key(scansKey, userId: userId))
     }
 
-    static func loadCareGuides() -> [CareGuide] {
-        load(careGuidesKey)
+    static func saveScans(_ scans: [PlantScan], userId: UUID? = nil) {
+        save(scans, key: key(scansKey, userId: userId))
     }
 
-    static func saveCareGuides(_ guides: [CareGuide]) {
-        save(guides, key: careGuidesKey)
+    static func loadCareGuides(userId: UUID? = nil) -> [CareGuide] {
+        load(key(careGuidesKey, userId: userId))
+    }
+
+    static func saveCareGuides(_ guides: [CareGuide], userId: UUID? = nil) {
+        save(guides, key: key(careGuidesKey, userId: userId))
+    }
+
+    static func saveCareGuide(_ guide: CareGuide, userId: UUID) {
+        var guides = loadCareGuides(userId: userId)
+        guides.removeAll { $0.speciesLatinName == guide.speciesLatinName }
+        guides.append(guide)
+        saveCareGuides(guides, userId: userId)
+    }
+
+    static func clearAll(userId: UUID) {
+        [plantsKey, remindersKey, scansKey, careGuidesKey].forEach {
+            defaults.removeObject(forKey: key($0, userId: userId))
+        }
+    }
+
+    static func migrateLegacyDataIfNeeded(to userId: UUID) {
+        let migrationKey = "pp.local.scopedMigration.\(userId.uuidString)"
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
+        if defaults.data(forKey: key(plantsKey, userId: userId)) == nil,
+           let legacy = defaults.data(forKey: plantsKey) {
+            defaults.set(legacy, forKey: key(plantsKey, userId: userId))
+        }
+        if defaults.data(forKey: key(remindersKey, userId: userId)) == nil,
+           let legacy = defaults.data(forKey: remindersKey) {
+            defaults.set(legacy, forKey: key(remindersKey, userId: userId))
+        }
+        if defaults.data(forKey: key(scansKey, userId: userId)) == nil,
+           let legacy = defaults.data(forKey: scansKey) {
+            defaults.set(legacy, forKey: key(scansKey, userId: userId))
+        }
+        if defaults.data(forKey: key(careGuidesKey, userId: userId)) == nil,
+           let legacy = defaults.data(forKey: careGuidesKey) {
+            defaults.set(legacy, forKey: key(careGuidesKey, userId: userId))
+        }
+
+        [plantsKey, remindersKey, scansKey, careGuidesKey].forEach(defaults.removeObject(forKey:))
+        defaults.set(true, forKey: migrationKey)
     }
 
     private static func load<T: Decodable>(_ key: String) -> [T] {
@@ -62,12 +105,12 @@ enum LocalGardenStore {
 enum LocalPhotoStore {
     static let prefix = "local:"
 
-    static func save(imageData: Data, folder: String) throws -> String {
-        let dir = try folderURL(folder)
+    static func save(imageData: Data, folder: String, userId: UUID) throws -> String {
+        let dir = try folderURL("\(userId.uuidString)/\(folder)")
         let fileName = "\(UUID().uuidString).jpg"
         let fileURL = dir.appendingPathComponent(fileName)
         try imageData.write(to: fileURL, options: .atomic)
-        return "\(prefix)\(folder)/\(fileName)"
+        return "\(prefix)\(userId.uuidString)/\(folder)/\(fileName)"
     }
 
     static func load(path: String) -> Data? {
@@ -75,6 +118,20 @@ enum LocalPhotoStore {
         let relative = String(path.dropFirst(prefix.count))
         guard let base = try? baseDirectory() else { return nil }
         return try? Data(contentsOf: base.appendingPathComponent(relative))
+    }
+
+    static func remove(path: String) throws {
+        guard path.hasPrefix(prefix) else { return }
+        let relative = String(path.dropFirst(prefix.count))
+        let fileURL = try baseDirectory().appendingPathComponent(relative)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        try FileManager.default.removeItem(at: fileURL)
+    }
+
+    static func removeAll(userId: UUID) throws {
+        let userDirectory = try baseDirectory().appendingPathComponent(userId.uuidString)
+        guard FileManager.default.fileExists(atPath: userDirectory.path) else { return }
+        try FileManager.default.removeItem(at: userDirectory)
     }
 
     private static func folderURL(_ folder: String) throws -> URL {

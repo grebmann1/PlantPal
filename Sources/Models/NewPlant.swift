@@ -1,6 +1,7 @@
 import Foundation
 
 struct NewPlant: Codable {
+    var id: UUID? = nil
     var userId: UUID
     var nickname: String
     var speciesCommonName: String?
@@ -14,7 +15,7 @@ struct NewPlant: Codable {
     var placement: PlantPlacement
 
     enum CodingKeys: String, CodingKey {
-        case nickname, family, placement
+        case id, nickname, family, placement
         case userId = "user_id"
         case speciesCommonName = "species_common_name"
         case speciesLatinName = "species_latin_name"
@@ -26,6 +27,7 @@ struct NewPlant: Codable {
     }
 
     init(
+        id: UUID? = nil,
         userId: UUID,
         nickname: String,
         speciesCommonName: String? = nil,
@@ -38,6 +40,7 @@ struct NewPlant: Codable {
         wateringAmountMl: Int? = nil,
         placement: PlantPlacement = .indoor
     ) {
+        self.id = id
         self.userId = userId
         self.nickname = nickname
         self.speciesCommonName = speciesCommonName

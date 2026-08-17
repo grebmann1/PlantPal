@@ -4,11 +4,21 @@ import Supabase
 enum StorageService {
     /// Uploads a JPEG photo to the private `plant-photos` bucket under the user's own folder.
     /// Returns the storage object path (not a public URL, since the bucket is private).
-    static func uploadPhoto(userId: UUID, imageData: Data, folder: String) async throws -> String {
-        let path = "\(userId.uuidString)/\(folder)/\(UUID().uuidString).jpg"
+    static func uploadPhoto(
+        userId: UUID,
+        imageData: Data,
+        folder: String,
+        fileName: String = "\(UUID().uuidString).jpg",
+        upsert: Bool = false
+    ) async throws -> String {
+        let path = "\(userId.uuidString)/\(folder)/\(fileName)"
         try await SupabaseManager.client.storage
             .from(SupabaseManager.storageBucket)
-            .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+            .upload(
+                path,
+                data: imageData,
+                options: FileOptions(contentType: "image/jpeg", upsert: upsert)
+            )
         return path
     }
 
@@ -22,10 +32,33 @@ enum StorageService {
 
     /// Routes a photo upload either to Supabase Storage (signed-in users) or to
     /// on-device storage (guests, who have no auth token to satisfy Storage RLS).
-    static func upload(userId: UUID, imageData: Data, folder: String, isGuest: Bool) async throws -> String {
+    static func upload(
+        userId: UUID,
+        imageData: Data,
+        folder: String,
+        isGuest: Bool,
+        fileName: String? = nil,
+        upsert: Bool = false
+    ) async throws -> String {
         if isGuest {
-            return try LocalPhotoStore.save(imageData: imageData, folder: folder)
+            return try LocalPhotoStore.save(imageData: imageData, folder: folder, userId: userId)
         }
-        return try await uploadPhoto(userId: userId, imageData: imageData, folder: folder)
+        return try await uploadPhoto(
+            userId: userId,
+            imageData: imageData,
+            folder: folder,
+            fileName: fileName ?? "\(UUID().uuidString).jpg",
+            upsert: upsert
+        )
+    }
+
+    static func remove(path: String, isGuest: Bool) async throws {
+        if isGuest {
+            try LocalPhotoStore.remove(path: path)
+            return
+        }
+        try await SupabaseManager.client.storage
+            .from(SupabaseManager.storageBucket)
+            .remove(paths: [path])
     }
 }

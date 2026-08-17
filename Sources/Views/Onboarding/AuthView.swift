@@ -107,7 +107,6 @@ struct AuthView: View {
     }
 
     private func applyIntent() {
-        appState.clearGuestMode()
         coordinator.selectedTab = postSignInTab
         if postSignInTab == .scan {
             coordinator.scanPresetIntent = ScanIntent(mode: .identify, plantId: nil)

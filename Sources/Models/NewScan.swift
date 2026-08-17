@@ -1,6 +1,7 @@
 import Foundation
 
 struct NewScan: Codable {
+    var id: UUID? = nil
     var userId: UUID
     var plantId: UUID?
     var photoUrl: String?
@@ -11,6 +12,7 @@ struct NewScan: Codable {
     var aiResultJson: AIScanPayload?
 
     enum CodingKeys: String, CodingKey {
+        case id
         case userId = "user_id"
         case plantId = "plant_id"
         case photoUrl = "photo_url"
@@ -22,6 +24,7 @@ struct NewScan: Codable {
     }
 
     init(
+        id: UUID? = nil,
         userId: UUID,
         plantId: UUID? = nil,
         photoUrl: String? = nil,
@@ -31,6 +34,7 @@ struct NewScan: Codable {
         healthScore: Int? = nil,
         aiResultJson: AIScanPayload? = nil
     ) {
+        self.id = id
         self.userId = userId
         self.plantId = plantId
         self.photoUrl = photoUrl

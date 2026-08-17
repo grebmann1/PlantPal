@@ -87,6 +87,14 @@ struct SpeciesCatalog: Codable, Identifiable, Hashable {
     var wateringLabel: String {
         watering?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? String(localized: "—")
     }
+
+    /// List responses can carry `details_fetched` from an older cached row while
+    /// lacking the fields that only the details endpoint supplies.
+    var hasUsableDetails: Bool {
+        [description, careLevel, growthRate].contains { value in
+            value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil
+        }
+    }
 }
 
 private extension String {

@@ -34,10 +34,10 @@ struct SpeciesDetailView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         if let errorMessage {
                             Text(errorMessage)
-                                .font(theme.subheadFont)
+                                .font(theme.footnoteFont)
                                 .foregroundStyle(theme.error)
-                                .padding(.top, 20)
-                        } else if let species {
+                        }
+                        if let species {
                             titleBlock(species)
                             careStats(species)
                             if let description = species.description, !description.isEmpty {
@@ -284,6 +284,7 @@ struct SpeciesDetailView: View {
                 placement: placement
             )
             let created = try await garden.addPlant(newPlant)
+            _ = try await garden.ensureWateringReminder(userId: userId, plant: created, due: nextWater)
             coordinator.scanSpeciesSheetId = nil
             coordinator.goToPlantDetail(created.id, from: .catalog)
         } catch {

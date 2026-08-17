@@ -57,6 +57,19 @@ enum SpeciesCollectionService {
             .execute()
     }
 
+    static func fetchAll(userId: UUID) async throws -> [SpeciesActivity] {
+        let rows: [CloudSpeciesActivity] = try await baseQuery(userId: userId)
+            .execute()
+            .value
+        return rows.map {
+            SpeciesActivity(
+                species: $0.species,
+                isFavorite: $0.isFavorite,
+                lastViewedAt: $0.lastViewedAt
+            )
+        }
+    }
+
     static func saveFavorite(speciesId: Int, isFavorite: Bool, userId: UUID) async throws {
         let write = SpeciesFavoriteWrite(
             userId: userId,
@@ -83,20 +96,37 @@ enum SpeciesCollectionService {
 enum LocalSpeciesCollectionStore {
     private static let key = "pp.local.speciesActivity"
 
-    static func load() -> [SpeciesActivity] {
-        guard let data = UserDefaults.standard.data(forKey: key),
+    private static func scopedKey(userId: UUID?) -> String {
+        guard let userId else { return key }
+        return "\(key).\(userId.uuidString)"
+    }
+
+    static func load(userId: UUID? = nil) -> [SpeciesActivity] {
+        guard let data = UserDefaults.standard.data(forKey: scopedKey(userId: userId)),
               let activities = try? JSONDecoder().decode([SpeciesActivity].self, from: data) else {
             return []
         }
         return activities
     }
 
-    static func save(_ activities: [SpeciesActivity]) {
+    static func save(_ activities: [SpeciesActivity], userId: UUID? = nil) {
         guard let data = try? JSONEncoder().encode(activities) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        UserDefaults.standard.set(data, forKey: scopedKey(userId: userId))
     }
 
-    static func clear() {
-        UserDefaults.standard.removeObject(forKey: key)
+    static func clear(userId: UUID? = nil) {
+        UserDefaults.standard.removeObject(forKey: scopedKey(userId: userId))
+    }
+
+    static func migrateLegacyDataIfNeeded(to userId: UUID) {
+        let migrationKey = "pp.local.speciesActivityMigration.\(userId.uuidString)"
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migrationKey) else { return }
+        if defaults.data(forKey: scopedKey(userId: userId)) == nil,
+           let legacy = defaults.data(forKey: key) {
+            defaults.set(legacy, forKey: scopedKey(userId: userId))
+        }
+        defaults.removeObject(forKey: key)
+        defaults.set(true, forKey: migrationKey)
     }
 }
